@@ -287,7 +287,7 @@ function AdminDashboard({ onLogout }) {
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><IconUser/> Nuevo Vendedor</h2>
                 <form onSubmit={handleCreateSeller} className="space-y-4">
                   <div><label className="block text-xs font-bold text-gray-700 mb-1">Nombre</label><input type="text" value={newSellerName} onChange={e=>setNewSellerName(e.target.value)} required className="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500" /></div>
-                  <div><label className="block text-xs font-bold text-gray-700 mb-1">Código de Acceso (PIN)</label><input type="text" value={newSellerCode} onChange={e=>setSellerCode(e.target.value)} required placeholder="Ej. 1234" className="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold tracking-widest" /></div>
+                  <div><label className="block text-xs font-bold text-gray-700 mb-1">Código de Acceso (PIN)</label><input type="text" value={newSellerCode} onChange={e=>setNewSellerCode(e.target.value)} required placeholder="Ej. 1234" className="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold tracking-widest" /></div>
                   <button type="submit" className="w-full py-2.5 bg-gray-900 text-white font-bold rounded-xl shadow-sm hover:bg-gray-800">Crear Vendedor</button>
                 </form>
               </div>
