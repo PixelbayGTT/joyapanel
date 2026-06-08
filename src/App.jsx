@@ -44,7 +44,6 @@ const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" heig
 // --- COMPONENTE TARJETA DE VENTAS (MÓVIL Y AMIGABLE) ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
   const suggestedPrice = item.weight * 80;
-  // Usamos un string para permitir que el input esté completamente vacío
   const [currentPriceStr, setCurrentPriceStr] = useState(suggestedPrice.toString());
   const [sellQuantity, setSellQuantity] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
@@ -109,7 +108,6 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
             placeholder="0.00"
           />
           
-          {/* INDICADOR PERMANENTE */}
           <div className="mt-2 ml-1 text-xs font-bold h-4">
             {currentPriceStr === '' ? (
               <span className="text-amber-500">Ingresa un precio de venta</span>
@@ -280,7 +278,6 @@ export default function App() {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
-          // AQUÍ OCURRE LA AUTENTICACIÓN ANÓNIMA OBLIGATORIA
           await signInAnonymously(auth);
         }
       }
@@ -299,7 +296,6 @@ export default function App() {
       }
     } catch (error) {
       console.error(error);
-      // VALIDACIÓN MEJORADA DE ERRORES:
       if (error.code === 'auth/operation-not-allowed') {
         setAuthError("Falta Configuración: Habilita el método 'Anónimo' en Firebase Authentication.");
       } else if (error.code === 'permission-denied') {
@@ -312,7 +308,6 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      // ESTA ES LA CLAVE QUE FALTABA: Cierra sesión de verdad en Firebase.
       await signOut(auth);
     } catch (err) {
       console.error("Error cerrando sesión Firebase:", err);
@@ -492,6 +487,7 @@ export default function App() {
   const totalSellersDebt = sellerDebts.reduce((sum, s) => sum + s.currentDebt, 0);
   const myDebtToAdmin = posProfile?.role === 'seller' ? calculateSellerDebt(posProfile.sellerId) : 0;
   const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
+  const myNetProfit = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.profit || 0), 0);
 
   // --- RENDERIZADOS ---
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white"><IconDiamond /> Cargando...</div>;
@@ -589,14 +585,14 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
+      <main className="max-w-7xl mx-auto md:px-4 py-6 flex gap-6">
         <div className={`flex-1 ${activeTab === 'sales' && isCartOpen ? 'hidden md:block' : 'block'}`}>
           
           {/* TAB: INVENTARIO */}
           {activeTab === 'inventory' && (
             <div className="space-y-6">
               {posProfile.role === 'admin' && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mx-4 md:mx-0">
                   <h2 className="text-lg font-black mb-4">Registrar Joya</h2>
                   <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="sm:col-span-2"><input type="text" value={newDesc} onChange={e=>setNewDesc(e.target.value)} placeholder="Descripción" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
@@ -614,9 +610,11 @@ export default function App() {
                 </div>
               )}
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden">
                 <div className="p-4 border-b border-gray-50 bg-gray-50/50"><h3 className="font-bold text-gray-800">Mi Inventario Asignado</h3></div>
-                <div className="overflow-x-auto">
+                
+                {/* VISTA ESCRITORIO (Tabla) */}
+                <div className="overflow-x-auto hidden md:block">
                   <table className="w-full text-left border-collapse whitespace-nowrap">
                     <thead>
                       <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
@@ -653,25 +651,63 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* VISTA MÓVIL (Tarjetas) */}
+                <div className="md:hidden flex flex-col gap-3 p-4">
+                  {visibleInventory.map(item => (
+                    <div key={item.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex gap-4 relative">
+                      <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center border border-gray-100 overflow-hidden shrink-0">
+                        {item.image ? <img src={item.image} className="w-full h-full object-cover"/> : <IconImage/>}
+                      </div>
+                      <div className="flex-1">
+                         <h4 className="font-black text-gray-800 text-sm leading-tight mb-1">{item.description}</h4>
+                         <div className="flex justify-between items-center mb-2">
+                           <span className="text-[11px] text-gray-500 font-bold">{item.weight}g</span>
+                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${item.quantity>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity} disponibles</span>
+                         </div>
+                         <div className="grid grid-cols-2 gap-2 text-[10px]">
+                            <div className="bg-gray-50 p-1.5 rounded-lg">
+                               <span className="block text-gray-400 font-bold uppercase">Costo Base</span>
+                               <span className="font-black text-gray-700">Q{(item.weight*40).toFixed(2)}</span>
+                            </div>
+                            <div className="bg-emerald-50 p-1.5 rounded-lg">
+                               <span className="block text-emerald-600/70 font-bold uppercase">Precio Sug.</span>
+                               <span className="font-black text-emerald-700">Q{(item.weight*80).toFixed(2)}</span>
+                            </div>
+                         </div>
+                         {posProfile.role === 'admin' && (
+                           <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
+                             <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600">Asignado a: {item.assignedTo === 'general' ? 'General' : sellers.find(s=>s.id===item.assignedTo)?.nombre || 'Desc.'}</span>
+                             <div className="flex gap-2">
+                               <button onClick={() => setEditingItem(item)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><IconEdit /></button>
+                               <button onClick={() => deleteItem(item.id)} className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg"><IconTrash /></button>
+                             </div>
+                           </div>
+                         )}
+                      </div>
+                    </div>
+                  ))}
+                  {visibleInventory.length === 0 && <div className="text-center py-8 text-gray-500 font-bold text-sm">No hay inventario disponible.</div>}
+                </div>
               </div>
             </div>
           )}
 
           {/* TAB: VENDEDORES (Admin) */}
           {activeTab === 'sellers' && posProfile.role === 'admin' && (
-            <div className="max-w-2xl mx-auto space-y-6">
+            <div className="max-w-2xl mx-auto space-y-6 px-4 md:px-0">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-lg font-black mb-4">Crear Vendedor</h2>
-                <form onSubmit={handleAddSeller} className="flex gap-4 items-end">
-                  <div className="flex-1">
+                <form onSubmit={handleAddSeller} className="flex gap-4 items-end flex-col sm:flex-row">
+                  <div className="flex-1 w-full">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre</label>
                     <input type="text" value={newSellerName} onChange={e=>setNewSellerName(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 w-full">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">PIN Secreto</label>
                     <input type="text" value={newSellerCode} onChange={e=>setNewSellerCode(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-center tracking-widest" required placeholder="Ej. 1234" />
                   </div>
-                  <button type="submit" className="px-6 py-2.5 bg-amber-500 text-white rounded-xl font-bold">Añadir</button>
+                  <button type="submit" className="w-full sm:w-auto px-6 py-2.5 bg-amber-500 text-white rounded-xl font-bold">Añadir</button>
                 </form>
               </div>
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-4 space-y-3">
@@ -691,14 +727,13 @@ export default function App() {
 
           {/* TAB: VENTAS */}
           {activeTab === 'sales' && (
-            <div>
+            <div className="px-4 md:px-0">
               <div className="mb-4 flex justify-between items-center">
                 <h2 className="text-xl font-black text-gray-900 mb-1">Punto de Venta</h2>
                 <button onClick={() => setIsCartOpen(!isCartOpen)} className="hidden md:flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold">
                   <IconCart /> Ver Carrito {cart.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-xs">{cart.length}</span>}
                 </button>
               </div>
-              {/* Cambiada la cuadrícula a un diseño de tarjetas grandes para móviles y amigables */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {visibleInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
                 {visibleInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
@@ -708,9 +743,11 @@ export default function App() {
 
           {/* TAB: HISTORIAL */}
           {activeTab === 'history' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden">
               <div className="p-5 border-b border-gray-100"><h2 className="text-lg font-black text-gray-900">Historial de Órdenes de Venta</h2></div>
-              <div className="overflow-x-auto">
+              
+              {/* VISTA ESCRITORIO (Tabla) */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-left border-collapse whitespace-nowrap">
                   <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Orden</th><th className="p-4 font-bold border-b">Total</th><th className="p-4 font-bold border-b">Saldo</th><th className="p-4 font-bold border-b">Estado</th><th className="p-4 font-bold border-b text-right">Acciones</th></tr></thead>
                   <tbody className="divide-y divide-gray-50 text-sm">
@@ -734,6 +771,38 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+
+              {/* VISTA MÓVIL (Tarjetas) */}
+              <div className="md:hidden flex flex-col gap-3 p-4">
+                {visibleHistory.map(order => (
+                  <div key={order.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="font-black text-gray-900 cursor-pointer text-blue-600 text-sm mb-0.5 hover:underline" onClick={() => setSelectedOrderDetails(order)}>{order.orderNumber}</div>
+                        <div className="text-[11px] text-gray-500 font-bold">{order.customerName}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{order.date.split(',')[0]}</div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${order.status==='Pagada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{order.status}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-3 bg-gray-50 p-2 rounded-xl">
+                       <div>
+                          <span className="block text-[9px] text-gray-400 font-bold uppercase">Total Venta</span>
+                          <span className="font-black text-gray-800 text-sm">Q{order.saleTotal.toFixed(2)}</span>
+                       </div>
+                       <div>
+                          <span className="block text-[9px] text-gray-400 font-bold uppercase">Saldo</span>
+                          <span className="font-black text-red-600 text-sm">Q{order.balance.toFixed(2)}</span>
+                       </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-gray-50">
+                      {order.status === 'Pendiente' && <button onClick={() => {setAbonoOrder(order); setAbonoModalOpen(true);}} className="text-[11px] font-bold bg-amber-500 text-white px-4 py-2 rounded-xl">Abonar</button>}
+                      <button onClick={() => { setEditingOrder(order); setEditCustomerName(order.customerName); setEditCustomerPhone(order.customerPhone || ''); setEditPaidAmount(order.paidAmount); }} className="text-[11px] font-bold border border-gray-200 bg-white px-3 py-2 rounded-xl text-gray-700 shadow-sm">Editar</button>
+                      <button onClick={() => handleDeleteOrder(order)} className="text-[11px] font-bold border border-red-100 bg-red-50 text-red-600 px-3 py-2 rounded-xl"><IconTrash/></button>
+                    </div>
+                  </div>
+                ))}
+                {visibleHistory.length === 0 && <div className="text-center py-8 text-gray-500 font-bold text-sm">No hay ventas registradas.</div>}
+              </div>
             </div>
           )}
 
@@ -742,7 +811,7 @@ export default function App() {
             <div className="space-y-6">
               {posProfile.role === 'admin' ? (
                 <>
-                  <div className="bg-gray-900 p-6 sm:p-8 rounded-3xl shadow-xl border text-white relative flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="mx-4 md:mx-0 bg-gray-900 p-6 sm:p-8 rounded-3xl shadow-xl border text-white relative flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
                       <div className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2"><IconWallet/> Deuda Total de Vendedores</div>
                       <div className="text-5xl font-black">Q{totalSellersDebt.toFixed(2)}</div>
@@ -750,7 +819,7 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Desglose de Deudas por Vendedor</h2></div>
                     <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {sellerDebts.map(s => (
@@ -758,7 +827,7 @@ export default function App() {
                           <div className="flex justify-between items-start mb-4">
                              <div className="font-black text-gray-900 text-lg">{s.nombre}</div>
                              <div className="text-right">
-                               <div className="text-[10px] text-gray-400 font-bold uppercase">Deuda</div>
+                               <div className="text-[10px] text-gray-400 font-bold uppercase">Deuda Total</div>
                                <div className={`font-black text-xl ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
                              </div>
                           </div>
@@ -771,9 +840,11 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Historial Global de Abonos</h2></div>
-                    <div className="overflow-x-auto">
+                    
+                    {/* Tabla Abonos Admin Escritorio */}
+                    <div className="overflow-x-auto hidden md:block">
                       <table className="w-full text-left border-collapse whitespace-nowrap">
                         <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Fecha</th><th className="p-4 font-bold border-b">Vendedor</th><th className="p-4 font-bold border-b">Monto Abonado</th><th className="p-4 font-bold border-b text-right">Acciones</th></tr></thead>
                         <tbody className="divide-y divide-gray-50 text-sm">
@@ -792,27 +863,56 @@ export default function App() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Tabla Abonos Admin Móvil */}
+                    <div className="md:hidden flex flex-col gap-3 p-4">
+                        {sellerToAdminPayments.map(p => (
+                            <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div>
+                                    <div className="font-black text-gray-900">{p.sellerName || 'Desconocido'}</div>
+                                    <div className="text-[10px] text-gray-500 font-bold mt-0.5">{p.date.split(',')[0]}</div>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                    <div className="font-black text-emerald-600">Q{p.amount.toFixed(2)}</div>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => { setEditingPayment(p); setEditPaymentAmount(p.amount); }} className="text-[10px] font-bold bg-gray-50 px-2 py-1.5 rounded-lg border text-gray-600">Editar</button>
+                                      <button onClick={() => handleDeletePayment(p.id)} className="text-[10px] font-bold bg-red-50 px-2 py-1.5 rounded-lg border border-red-100 text-red-600"><IconTrash/></button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {sellerToAdminPayments.length === 0 && <div className="text-center py-6 text-gray-500 font-bold text-sm">No hay abonos registrados.</div>}
+                    </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                  <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden mb-6">
                     <div className="p-6 border-b border-gray-50 bg-gray-50/50">
                       <h2 className="text-xl font-black text-gray-900">Resumen de Cuenta</h2>
-                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tu deuda general (inventario actual en tus manos + ventas) y los abonos que has realizado.</p>
+                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tu rendimiento y tu deuda sincronizada con el administrador.</p>
                     </div>
                     <div className="p-6">
-                      <div className="bg-red-50 p-6 sm:p-8 rounded-3xl border border-red-200 text-center sm:text-left">
-                        <div className="text-sm font-bold text-red-600 uppercase mb-2">Deuda Pendiente al Administrador</div>
-                        <div className="text-5xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
-                        <p className="text-xs text-red-500 font-bold mt-4 flex items-center justify-center sm:justify-start gap-1"><IconInfo/> Calculado sobre el costo base de tu inventario y ventas.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-red-50 p-6 rounded-3xl border border-red-200 text-center sm:text-left">
+                          <div className="text-sm font-bold text-red-600 uppercase mb-2">Deuda Total de Inventario</div>
+                          <div className="text-4xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
+                          <p className="text-[10px] text-red-500 font-bold mt-2 leading-tight">Inventario actual + Ventas realizadas - Abonos dados</p>
+                        </div>
+                        <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 text-center sm:text-left">
+                          <div className="text-sm font-bold text-emerald-600 uppercase mb-2">Ganancia Neta Total</div>
+                          <div className="text-4xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
+                          <p className="text-[10px] text-emerald-500 font-bold mt-2 leading-tight">Suma de las ganancias de todas tus ventas</p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Mis Abonos Realizados</h2></div>
-                    <div className="overflow-x-auto">
+                    
+                    {/* Abonos Vendedor Escritorio */}
+                    <div className="overflow-x-auto hidden md:block">
                       <table className="w-full text-left border-collapse whitespace-nowrap">
                         <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Fecha de Registro</th><th className="p-4 font-bold border-b">Monto Abonado</th></tr></thead>
                         <tbody className="divide-y divide-gray-50 text-sm">
@@ -826,6 +926,18 @@ export default function App() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Abonos Vendedor Móvil */}
+                    <div className="md:hidden flex flex-col gap-3 p-4">
+                       {myPaymentsHistory.map(p => (
+                           <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+                               <div className="text-xs font-bold text-gray-500">{p.date.split(',')[0]}</div>
+                               <div className="font-black text-emerald-600 text-lg">Q{p.amount.toFixed(2)}</div>
+                           </div>
+                       ))}
+                       {myPaymentsHistory.length === 0 && <div className="text-center py-6 text-gray-500 font-bold text-sm">Aún no tienes abonos registrados.</div>}
+                    </div>
+
                   </div>
                 </>
               )}
@@ -891,15 +1003,28 @@ export default function App() {
                 <div><span className="text-gray-400 text-[10px] font-bold uppercase">Estado</span> <div className={selectedOrderDetails.status==='Pagada'?'text-emerald-600 font-black':'text-red-600 font-black'}>{selectedOrderDetails.status}</div></div>
               </div>
               <div>
-                <h4 className="font-black mb-2 border-b pb-2">Artículos Vendidos</h4>
+                <h4 className="font-black mb-3 border-b pb-2">Artículos Vendidos</h4>
                 {selectedOrderDetails.items.map((it, idx) => (
-                  <div key={idx} className="border p-3 rounded-xl mb-2 bg-white shadow-sm">
-                    <div className="flex justify-between font-black mb-1"><span>{it.quantity}x {it.description}</span><span>Q{it.saleTotal.toFixed(2)}</span></div>
-                    <div className="flex flex-col gap-1 text-[11px]">
-                       <div className="flex justify-between text-gray-500 font-bold"><span>Precio Venta Un: Q{it.salePrice.toFixed(2)}</span></div>
-                       <div className="flex justify-between font-bold">
-                         <span className="text-gray-500">Costo Base: Q{it.baseCostTotal.toFixed(2)}</span>
-                         <span className="text-emerald-500">Ganancia: Q{it.profit.toFixed(2)}</span>
+                  <div key={idx} className="border border-gray-200 p-4 rounded-2xl mb-3 bg-white shadow-sm">
+                    <div className="flex justify-between font-black mb-2 text-gray-800">
+                      <span>{it.quantity}x {it.description}</span>
+                      <span className="text-amber-600">Q{it.saleTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5 text-[11px] bg-gray-50 p-3 rounded-xl border border-gray-100">
+                       <div className="flex justify-between font-bold text-gray-600">
+                         <span>Costo Un: Q{(it.baseCostTotal / it.quantity).toFixed(2)}</span>
+                         <span>Venta Un: Q{it.salePrice.toFixed(2)}</span>
+                       </div>
+                       
+                       <div className="flex justify-between items-center mt-1">
+                         {it.difference < -0.01 && <span className="text-[10px] text-red-600 font-black bg-red-100/50 px-2 py-1 rounded-md">↓ Q{Math.abs(it.difference).toFixed(2)} Desc/Un.</span>}
+                         {it.difference > 0.01 && <span className="text-[10px] text-emerald-600 font-black bg-emerald-100/50 px-2 py-1 rounded-md">↑ Q{Math.abs(it.difference).toFixed(2)} Extra/Un.</span>}
+                         {Math.abs(it.difference || 0) <= 0.01 && <span className="text-[10px] text-gray-400 font-bold bg-white px-2 py-1 rounded-md border shadow-sm">✓ Sugerido</span>}
+                       </div>
+
+                       <div className="flex justify-between font-black mt-2 pt-2 border-t border-gray-200">
+                         <span className="text-gray-500">Costo Base Total: Q{it.baseCostTotal.toFixed(2)}</span>
+                         <span className="text-emerald-600">Ganancia Neta: Q{it.profit.toFixed(2)}</span>
                        </div>
                     </div>
                   </div>
