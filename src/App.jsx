@@ -367,13 +367,33 @@ export default function App() {
 
     try {
       await addDoc(getColRef('assignments'), newAssignment);
-      for (const cItem of assignCart) {
-        const genItem = inventory.find(i => i.id === cItem.inventoryId);
-        if (genItem) await updateDoc(getDocRef('inventory', genItem.id), { quantity: (genItem.quantity || 0) - cItem.quantity });
+      
+      const aggregatedAssign = {};
+      for(const cItem of assignCart) {
+          const key = `${cItem.description}_${cItem.weight}`;
+          if (!aggregatedAssign[key]) {
+              aggregatedAssign[key] = { ...cItem };
+          } else {
+              aggregatedAssign[key].quantity += cItem.quantity;
+          }
+      }
+
+      for (const cItem of Object.values(aggregatedAssign)) {
+        if (cItem.inventoryId) {
+           const genDocRef = getDocRef('inventory', cItem.inventoryId);
+           const genSnap = await getDoc(genDocRef);
+           if (genSnap.exists()) {
+              await updateDoc(genDocRef, { quantity: (genSnap.data().quantity || 0) - cItem.quantity });
+           }
+        }
         
         const existingSellerItem = inventory.find(i => i.assignedTo === sellerObj.id && i.description === cItem.description && i.weight === cItem.weight);
         if (existingSellerItem) {
-          await updateDoc(getDocRef('inventory', existingSellerItem.id), { quantity: (existingSellerItem.quantity || 0) + cItem.quantity });
+          const invRef = getDocRef('inventory', existingSellerItem.id);
+          const invSnap = await getDoc(invRef);
+          if (invSnap.exists()) {
+            await updateDoc(invRef, { quantity: (invSnap.data().quantity || 0) + cItem.quantity });
+          }
         } else {
           await addDoc(getColRef('inventory'), {
             adminUid: posProfile.adminUid, description: cItem.description, weight: cItem.weight, quantity: cItem.quantity,
@@ -389,17 +409,30 @@ export default function App() {
   const handleDeleteAssignment = (assignment) => {
     confirmAction("¿Eliminar esta asignación? Se retirará el inventario asignado al vendedor.", async () => {
       try {
+        const itemsToRemove = {};
         for (const item of assignment.items) {
-          const sellerItemsRef = inventory.filter(i => i.assignedTo === assignment.sellerId && i.description === item.description && i.weight === item.weight);
-          for (const sItem of sellerItemsRef) {
-             const newQty = Math.max(0, (sItem.quantity || 0) - item.quantity);
-             if (newQty === 0) {
-               await deleteDoc(getDocRef('inventory', sItem.id));
-             } else {
-               await updateDoc(getDocRef('inventory', sItem.id), { quantity: newQty });
-             }
-             break;
-          }
+           const key = `${item.description}_${item.weight}`;
+           itemsToRemove[key] = (itemsToRemove[key] || 0) + item.quantity;
+        }
+        
+        for (const key of Object.keys(itemsToRemove)) {
+           const [desc, weightStr] = key.split('_');
+           const weightNum = Number(weightStr);
+           const sItem = inventory.find(i => i.assignedTo === assignment.sellerId && i.description === desc && i.weight === weightNum);
+           
+           if (sItem) {
+               const invRef = getDocRef('inventory', sItem.id);
+               const invSnap = await getDoc(invRef);
+               if (invSnap.exists()) {
+                  const currentQty = invSnap.data().quantity || 0;
+                  const newQty = Math.max(0, currentQty - itemsToRemove[key]);
+                  if (newQty === 0) {
+                      await deleteDoc(invRef);
+                  } else {
+                      await updateDoc(invRef, { quantity: newQty });
+                  }
+               }
+           }
         }
         await deleteDoc(getDocRef('assignments', assignment.id));
         setSelectedAssignmentDetails(null);
@@ -438,10 +471,21 @@ export default function App() {
 
     try {
       await addDoc(getColRef('sales'), newOrder);
-      for (const cItem of cart) {
-        const invItem = inventory.find(i => i.id === cItem.inventoryId);
-        if (invItem) await updateDoc(getDocRef('inventory', invItem.id), { quantity: (invItem.quantity || 0) - cItem.quantity });
+      
+      const itemsToUpdate = {};
+      for (const item of cart) {
+         itemsToUpdate[item.inventoryId] = (itemsToUpdate[item.inventoryId] || 0) + item.quantity;
       }
+
+      for (const invId of Object.keys(itemsToUpdate)) {
+        const invDocRef = getDocRef('inventory', invId);
+        const invSnap = await getDoc(invDocRef);
+        if (invSnap.exists()) {
+           const currentQty = invSnap.data().quantity || 0;
+           await updateDoc(invDocRef, { quantity: currentQty - itemsToUpdate[invId] });
+        }
+      }
+      
       setCart([]); setCheckoutModalOpen(false); setIsCartOpen(false);
       setCustomerName(''); setCustomerPhone(''); setInitialPayment('');
       setHistoryView('sales'); setActiveTab('history');
@@ -451,10 +495,14 @@ export default function App() {
   const handleDeleteOrder = (order) => {
     confirmAction("¿Seguro que deseas eliminar esta orden? El inventario será restaurado.", async () => {
       try {
+        const itemsToRestore = {};
         for (const item of order.items) {
-          const invDocRef = getDocRef('inventory', item.inventoryId);
+           itemsToRestore[item.inventoryId] = (itemsToRestore[item.inventoryId] || 0) + item.quantity;
+        }
+        for (const invId of Object.keys(itemsToRestore)) {
+          const invDocRef = getDocRef('inventory', invId);
           const invSnap = await getDoc(invDocRef);
-          if(invSnap.exists()) await updateDoc(invDocRef, { quantity: (invSnap.data().quantity || 0) + item.quantity });
+          if(invSnap.exists()) await updateDoc(invDocRef, { quantity: (invSnap.data().quantity || 0) + itemsToRestore[invId] });
         }
         await deleteDoc(getDocRef('sales', order.id));
         setSelectedOrderDetails(null);
@@ -516,6 +564,7 @@ export default function App() {
   const generalInventory = inventory.filter(i => i.assignedTo === 'general');
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
+  const visibleAssignments = posProfile?.role === 'admin' ? assignmentsHistory : assignmentsHistory.filter(a => a.sellerId === posProfile?.sellerId);
 
   // Deudas Agrupadas de Vendedores para el Admin
   const calculateAdminSellerDebt = (sId) => {
@@ -867,12 +916,10 @@ export default function App() {
                 <h2 className="text-lg font-black text-gray-900">
                   {historyView === 'sales' ? 'Historial de Órdenes de Venta' : 'Historial de Asignaciones de Inventario'}
                 </h2>
-                {posProfile.role === 'admin' && (
-                  <div className="flex bg-gray-100 p-1 rounded-xl">
-                    <button onClick={() => setHistoryView('sales')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'sales' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Ventas</button>
-                    <button onClick={() => setHistoryView('assignments')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'assignments' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Asignaciones</button>
-                  </div>
-                )}
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  <button onClick={() => setHistoryView('sales')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'sales' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Ventas</button>
+                  <button onClick={() => setHistoryView('assignments')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'assignments' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Asignaciones</button>
+                </div>
               </div>
               
               {historyView === 'sales' ? (
@@ -934,9 +981,9 @@ export default function App() {
                   {/* VISTA ESCRITORIO (Tabla Asignaciones) */}
                   <div className="overflow-x-auto hidden md:block">
                     <table className="w-full text-left border-collapse whitespace-nowrap">
-                      <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Asignación</th><th className="p-4 font-bold border-b">Vendedor</th><th className="p-4 font-bold border-b">Total Costo Base (Deuda)</th><th className="p-4 font-bold border-b text-right">Acciones</th></tr></thead>
+                      <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Asignación</th><th className="p-4 font-bold border-b">Vendedor</th><th className="p-4 font-bold border-b">Total Costo Base (Deuda)</th>{posProfile.role === 'admin' && <th className="p-4 font-bold border-b text-right">Acciones</th>}</tr></thead>
                       <tbody className="divide-y divide-gray-50 text-sm">
-                        {assignmentsHistory.map(assign => (
+                        {visibleAssignments.map(assign => (
                           <tr key={assign.id} className="hover:bg-gray-50/50">
                             <td className="p-4">
                               <div className="font-black text-gray-900 cursor-pointer text-blue-600 hover:underline" onClick={() => setSelectedAssignmentDetails(assign)}>{assign.assignmentNumber || 'Sin número'}</div>
@@ -944,19 +991,21 @@ export default function App() {
                             </td>
                             <td className="p-4 font-black text-gray-800">{assign.sellerName || 'Desconocido'}</td>
                             <td className="p-4 font-black text-red-600">Q{(assign.baseCostTotal || 0).toFixed(2)}</td>
-                            <td className="p-4 flex items-center justify-end gap-2">
-                              <button onClick={() => handleDeleteAssignment(assign)} className="text-xs font-bold border bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100"><IconTrash/></button>
-                            </td>
+                            {posProfile.role === 'admin' && (
+                               <td className="p-4 flex items-center justify-end gap-2">
+                                 <button onClick={() => handleDeleteAssignment(assign)} className="text-xs font-bold border bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100"><IconTrash/></button>
+                               </td>
+                            )}
                           </tr>
                         ))}
-                        {assignmentsHistory.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-gray-500">No hay asignaciones registradas.</td></tr>}
+                        {visibleAssignments.length === 0 && <tr><td colSpan={posProfile.role === 'admin' ? "4" : "3"} className="p-8 text-center text-gray-500">No hay asignaciones registradas.</td></tr>}
                       </tbody>
                     </table>
                   </div>
 
                   {/* VISTA MÓVIL (Tarjetas Asignaciones) */}
                   <div className="md:hidden flex flex-col gap-3 p-4">
-                    {assignmentsHistory.map(assign => (
+                    {visibleAssignments.map(assign => (
                       <div key={assign.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
                           <div>
@@ -969,12 +1018,14 @@ export default function App() {
                           <span className="block text-[10px] text-red-500 font-bold uppercase">Deuda Adquirida</span>
                           <span className="font-black text-red-700 text-sm">Q{(assign.baseCostTotal || 0).toFixed(2)}</span>
                         </div>
-                        <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-gray-50">
-                          <button onClick={() => handleDeleteAssignment(assign)} className="text-[11px] font-bold border border-red-100 bg-red-50 text-red-600 px-4 py-2 rounded-xl flex items-center gap-1"><IconTrash/> Eliminar Asignación</button>
-                        </div>
+                        {posProfile.role === 'admin' && (
+                           <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-gray-50">
+                             <button onClick={() => handleDeleteAssignment(assign)} className="text-[11px] font-bold border border-red-100 bg-red-50 text-red-600 px-4 py-2 rounded-xl flex items-center gap-1"><IconTrash/> Eliminar Asignación</button>
+                           </div>
+                        )}
                       </div>
                     ))}
-                    {assignmentsHistory.length === 0 && <div className="text-center py-8 text-gray-500 font-bold text-sm">No hay asignaciones registradas.</div>}
+                    {visibleAssignments.length === 0 && <div className="text-center py-8 text-gray-500 font-bold text-sm">No hay asignaciones registradas.</div>}
                   </div>
                 </>
               )}
