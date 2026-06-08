@@ -39,8 +39,9 @@ const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" heigh
 const IconCart = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>;
 const IconClose = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
 const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 
-// --- COMPONENTE TARJETA DE VENTAS (MÁS PEQUEÑO Y COMPACTO) ---
+// --- COMPONENTE TARJETA DE VENTAS ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
   const suggestedPrice = item.weight * 80;
   const [currentPrice, setCurrentPrice] = useState(suggestedPrice);
@@ -98,6 +99,18 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
           <div>
             <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Precio Venta (Q)</label>
             <input type="number" value={currentPrice} onChange={(e) => setCurrentPrice(Number(e.target.value))} className={`w-full px-2 py-1 text-xs border rounded focus:ring-1 outline-none font-bold ${messageColor}`} step="0.01" />
+            
+            {/* INDICADOR DE DESCUENTO O GANANCIA ADICIONAL */}
+            {difference < -0.01 && (
+              <div className="text-[10px] text-red-600 font-bold mt-1 leading-none animate-in fade-in">
+                ↓ Q{Math.abs(difference).toFixed(2)} de descuento
+              </div>
+            )}
+            {difference > 0.01 && (
+              <div className="text-[10px] text-emerald-600 font-bold mt-1 leading-none animate-in fade-in">
+                ↑ Q{Math.abs(difference).toFixed(2)} extra
+              </div>
+            )}
           </div>
           <div className="flex gap-1.5 items-end">
             <div className="w-1/3">
@@ -139,7 +152,7 @@ export default function App() {
   const [sellers, setSellers] = useState([]);
   const [sellerToAdminPayments, setSellerToAdminPayments] = useState([]);
 
-  // Estados Formularios Inventario/Vendedores
+  // Estados Formularios
   const [newDesc, setNewDesc] = useState('');
   const [newWeight, setNewWeight] = useState('');
   const [newQty, setNewQty] = useState('');
@@ -172,12 +185,10 @@ export default function App() {
   const [editCustomerPhone, setEditCustomerPhone] = useState('');
   const [editPaidAmount, setEditPaidAmount] = useState('');
 
-  // Finanzas y Pagos
   const [adminAbonoModalOpen, setAdminAbonoModalOpen] = useState(false);
   const [adminAbonoAmount, setAdminAbonoAmount] = useState('');
   const [sellerToPay, setSellerToPay] = useState(null);
   
-  // Edición/Borrado de Historial de Pagos
   const [editingPayment, setEditingPayment] = useState(null);
   const [editPaymentAmount, setEditPaymentAmount] = useState('');
 
@@ -188,7 +199,6 @@ export default function App() {
 
   // --- 1. MANEJO DE SESIÓN SEGURO Y CONEXIÓN ---
   useEffect(() => {
-    // Inicialización proactiva de autenticación para evitar el "Error de conexión"
     const initAuth = async () => {
       try {
         if (!auth.currentUser) {
@@ -223,7 +233,7 @@ export default function App() {
     
     const adminRefUid = posProfile.adminUid;
     const errorHandler = (err) => console.error("Firestore Error:", err);
-    // IMPORTANTE: Aseguramos que solo veamos los datos correspondientes al Administrador actual
+    
     const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
 
     const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
@@ -257,16 +267,15 @@ export default function App() {
     e.preventDefault(); setAuthError('');
     
     try {
-      // Validamos explícitamente y esperamos la autenticación silenciosa si no está lista
       if (!auth.currentUser) {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
+          // AQUÍ OCURRE LA AUTENTICACIÓN ANÓNIMA OBLIGATORIA
           await signInAnonymously(auth);
         }
       }
 
-      // Ahora que la conexión está garantizada, buscamos el PIN
       const globalPinRef = doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput);
       const pinSnap = await getDoc(globalPinRef);
 
@@ -281,11 +290,24 @@ export default function App() {
       }
     } catch (error) {
       console.error(error);
-      setAuthError("Error de red. Asegúrate de tener conexión.");
+      // VALIDACIÓN MEJORADA DE ERRORES:
+      if (error.code === 'auth/operation-not-allowed') {
+        setAuthError("Falta Configuración: Habilita el método 'Anónimo' en Firebase Authentication.");
+      } else if (error.code === 'permission-denied') {
+        setAuthError("Error de permisos: Revisa tus reglas de Firestore.");
+      } else {
+        setAuthError("Error de red o conexión: " + error.message);
+      }
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // ESTA ES LA CLAVE QUE FALTABA: Cierra sesión de verdad en Firebase.
+      await signOut(auth);
+    } catch (err) {
+      console.error("Error cerrando sesión Firebase:", err);
+    }
     setPosProfile(null);
     localStorage.removeItem('joyapanel_profile');
     setLoginMode('select');
@@ -293,7 +315,6 @@ export default function App() {
 
   // --- 4. LÓGICA DEL SISTEMA ---
   
-  // Vendedores
   const handleAddSeller = async (e) => {
     e.preventDefault();
     try {
@@ -312,7 +333,6 @@ export default function App() {
     });
   };
 
-  // Inventario
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (!newDesc || !newWeight || !newQty) return;
@@ -338,7 +358,6 @@ export default function App() {
 
   const deleteItem = (id) => confirmAction("¿Eliminar esta joya?", async () => deleteDoc(getDocRef('inventory', id)));
 
-  // Ventas y Carrito
   const handleAddToCart = (item) => setCart([...cart, { ...item, cartId: Date.now() + Math.random() }]);
   const removeFromCart = (cartId) => setCart(cart.filter(c => c.cartId !== cartId));
 
@@ -373,7 +392,6 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
-  // Historial: Editar / Eliminar Orden
   const handleDeleteOrder = (order) => {
     confirmAction("¿Seguro que deseas eliminar esta orden? El inventario será restaurado.", async () => {
       try {
@@ -417,9 +435,6 @@ export default function App() {
     } catch(err) { console.error(err); }
   };
 
-  // --- FINANZAS Y ABONOS VENDEDOR-ADMIN ---
-  
-  // Procesar nuevo abono
   const processAbonoAdmin = async (e) => {
     e.preventDefault();
     try {
@@ -431,7 +446,6 @@ export default function App() {
     } catch(err) { console.error(err); }
   };
 
-  // Editar abono existente
   const handleEditPaymentSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -440,45 +454,33 @@ export default function App() {
     } catch(err) { console.error(err); }
   };
 
-  // Eliminar abono
   const handleDeletePayment = (paymentId) => {
     confirmAction("¿Eliminar este abono del historial?", async () => {
        await deleteDoc(getDocRef('sellerPayments', paymentId));
     });
   };
 
-  // --- CÁLCULOS FINANCIEROS Y DE DEUDA ---
   const cartTotal = cart.reduce((sum, item) => sum + item.saleTotal, 0);
   
-  // Filtros visuales dependiendo del rol
   const visibleInventory = posProfile?.role === 'admin' 
     ? inventory : inventory.filter(i => i.assignedTo === 'general' || i.assignedTo === posProfile?.sellerId);
     
   const visibleHistory = posProfile?.role === 'admin'
     ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
-  // Función Central de Deuda para Vendedores
   const calculateSellerDebt = (sId) => {
-    // 1. Costo Base del inventario que tiene ACTUALMENTE asignado y no ha vendido
     const currentInventoryDebt = inventory.filter(i => i.assignedTo === sId).reduce((sum, i) => sum + (i.weight * 40 * i.quantity), 0);
-    // 2. Costo Base de lo que YA VENDIÓ (se descuenta del inventario actual, así que el total se mantiene constante hasta que paga)
     const soldDebt = salesHistory.filter(s => s.sellerId === sId).reduce((sum, s) => sum + s.baseCostTotal, 0);
-    // 3. Pagos (Abonos) realizados al Admin
     const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId).reduce((sum, p) => sum + p.amount, 0);
-    
     return (currentInventoryDebt + soldDebt) - totalPaid;
   };
 
-  // Deuda específica de cada vendedor para el listado del Admin
   const sellerDebts = sellers.map(seller => ({
     ...seller,
     currentDebt: calculateSellerDebt(seller.id)
   }));
 
-  // Deuda total global de todos los vendedores
   const totalSellersDebt = sellerDebts.reduce((sum, s) => sum + s.currentDebt, 0);
-
-  // Deuda específica para el panel individual del Vendedor
   const myDebtToAdmin = posProfile?.role === 'seller' ? calculateSellerDebt(posProfile.sellerId) : 0;
   const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
 
@@ -532,7 +534,7 @@ export default function App() {
 
   // DASHBOARD PRINCIPAL
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-24 md:pb-0">
       <header className="bg-white shadow-sm sticky top-0 z-30 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-600">
@@ -543,7 +545,8 @@ export default function App() {
             </span>
           </div>
           
-          <div className="flex space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar">
+          {/* Navegación Desktop (Oculta en móviles) */}
+          <div className="hidden md:flex space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar">
             {posProfile.role === 'admin' && (
               <button onClick={() => setActiveTab('sellers')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'sellers' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconUsers /> <span className="hidden md:inline">Vendedores</span></button>
             )}
@@ -551,16 +554,31 @@ export default function App() {
             <button onClick={() => setActiveTab('sales')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'sales' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconTag /> <span className="hidden md:inline">Ventas</span></button>
             <button onClick={() => setActiveTab('history')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconHistory /> <span className="hidden md:inline">Historial</span></button>
             <button onClick={() => setActiveTab('finance')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconWallet /> <span className="hidden md:inline">Finanzas</span></button>
-            <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-all ml-2">Salir</button>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-all ml-2"><IconLogout /> Salir</button>
           </div>
 
+          {/* Botón Carrito en Mobile (Se queda arriba a la derecha) */}
           {activeTab === 'sales' && (
-            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600 md:hidden">
-              <IconCart /> {cart.length > 0 && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold">{cart.length}</span>}
+            <button onClick={() => setIsCartOpen(true)} className="relative p-2.5 bg-amber-50 text-amber-700 rounded-full md:hidden">
+              <IconCart /> {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-md">{cart.length}</span>}
             </button>
           )}
         </div>
       </header>
+
+      {/* Navegación Inferior Mobile (Menú App) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] pb-safe">
+        <div className="flex justify-around items-center h-16 px-1">
+          {posProfile.role === 'admin' && (
+             <button onClick={() => setActiveTab('sellers')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'sellers' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}><IconUsers /> <span className="text-[9px] font-bold">Vendedores</span></button>
+          )}
+          <button onClick={() => setActiveTab('inventory')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'inventory' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}><IconList /> <span className="text-[9px] font-bold">Inventario</span></button>
+          <button onClick={() => setActiveTab('sales')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'sales' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}><IconTag /> <span className="text-[9px] font-bold">Ventas</span></button>
+          <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'history' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}><IconHistory /> <span className="text-[9px] font-bold">Historial</span></button>
+          <button onClick={() => setActiveTab('finance')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'finance' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}><IconWallet /> <span className="text-[9px] font-bold">Finanzas</span></button>
+          <button onClick={handleLogout} className="flex flex-col items-center justify-center w-full h-full space-y-1 text-red-400 hover:text-red-600 transition-colors"><IconLogout /> <span className="text-[9px] font-bold">Salir</span></button>
+        </div>
+      </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
         <div className={`flex-1 ${activeTab === 'sales' && isCartOpen ? 'hidden md:block' : 'block'}`}>
@@ -671,7 +689,6 @@ export default function App() {
                   <IconCart /> Ver Carrito {cart.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-xs">{cart.length}</span>}
                 </button>
               </div>
-              {/* Cuadrícula más pequeña y compacta */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                 {visibleInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
                 {visibleInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
@@ -679,7 +696,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: HISTORIAL (ÓRDENES DE VENTA) */}
+          {/* TAB: HISTORIAL */}
           {activeTab === 'history' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-5 border-b border-gray-100"><h2 className="text-lg font-black text-gray-900">Historial de Órdenes de Venta</h2></div>
@@ -710,11 +727,10 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: FINANZAS (ADMIN Y VENDEDOR) */}
+          {/* TAB: FINANZAS */}
           {activeTab === 'finance' && (
             <div className="space-y-6">
               {posProfile.role === 'admin' ? (
-                // PANEL FINANZAS ADMIN
                 <>
                   <div className="bg-gray-900 p-6 sm:p-8 rounded-3xl shadow-xl border text-white relative flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
@@ -724,7 +740,6 @@ export default function App() {
                     </div>
                   </div>
                   
-                  {/* ADMIN: CONTROL DE DEUDAS Y BOTONES DE PAGO */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Desglose de Deudas por Vendedor</h2></div>
                     <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -746,7 +761,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* ADMIN: HISTORIAL GLOBAL DE ABONOS */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Historial Global de Abonos</h2></div>
                     <div className="overflow-x-auto">
@@ -771,7 +785,6 @@ export default function App() {
                   </div>
                 </>
               ) : (
-                // PANEL FINANZAS VENDEDOR
                 <>
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
                     <div className="p-6 border-b border-gray-50 bg-gray-50/50">
@@ -787,7 +800,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* VENDEDOR: SU PROPIO HISTORIAL DE ABONOS */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Mis Abonos Realizados</h2></div>
                     <div className="overflow-x-auto">
@@ -838,7 +850,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL COBRAR ORDEN */}
+      {/* MODALES REUTILIZABLES... (No se alteraron sustancialmente) */}
       {checkoutModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -857,7 +869,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DETALLES ORDEN COMPLETO */}
       {selectedOrderDetails && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
@@ -898,7 +909,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL EDITAR ORDEN */}
       {editingOrder && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -925,7 +935,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ABONO CLIENTE */}
       {abonoModalOpen && abonoOrder && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -943,7 +952,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ABONO ADMIN A VENDEDOR */}
       {adminAbonoModalOpen && sellerToPay && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -961,7 +969,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL EDITAR HISTORIAL DE ABONO DE VENDEDOR */}
       {editingPayment && (
          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -981,7 +988,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONFIRMACION GLOBAL */}
       {confirmDialog && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center">
