@@ -333,7 +333,26 @@ export default function App() {
     } catch(err) { console.error(err); }
   };
 
-  const deleteItem = (id) => confirmAction("¿Eliminar esta joya?", async () => deleteDoc(getDocRef('inventory', id)));
+  const deleteItem = (item) => {
+    confirmAction("¿Eliminar esta joya?" + (item.assignedTo !== 'general' ? "\nSe descontará su costo de la deuda del vendedor." : ""), async () => {
+      try {
+        await deleteDoc(getDocRef('inventory', item.id));
+        if (item.assignedTo !== 'general') {
+          const sellerObj = sellers.find(s => s.id === item.assignedTo);
+          await addDoc(getColRef('sellerPayments'), {
+            adminUid: posProfile.adminUid,
+            sellerId: item.assignedTo,
+            sellerName: sellerObj ? sellerObj.nombre : 'Desconocido',
+            amount: item.cost * item.quantity,
+            date: new Date().toLocaleString(),
+            timestamp: Date.now(),
+            type: 'Baja de Inventario',
+            isAdjustment: true
+          });
+        }
+      } catch(err) { console.error(err); }
+    });
+  };
 
   // --- 6. LÓGICA ASIGNACIONES (ADMIN) ---
   const handleAddToAssignCart = (item) => setAssignCart([...assignCart, { ...item, cartId: Date.now() + Math.random() }]);
@@ -496,7 +515,7 @@ export default function App() {
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
-  // DEUDA VISTA ADMIN (Se basa en las asignaciones de inventario menos los pagos)
+  // DEUDA VISTA ADMIN (Se basa en las asignaciones de inventario menos TODOS los pagos/ajustes)
   const calculateAdminSellerDebt = (sId) => {
     const assignedDebt = assignmentsHistory.filter(a => a.sellerId === sId).reduce((sum, a) => sum + (a.baseCostTotal || 0), 0);
     const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId).reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -506,9 +525,9 @@ export default function App() {
   const sellerDebts = sellers.map(seller => ({ ...seller, currentDebt: calculateAdminSellerDebt(seller.id) }));
   const totalSellersDebt = sellerDebts.reduce((sum, s) => sum + s.currentDebt, 0);
   
-  // DEUDA VISTA VENDEDOR (Se basa estrictamente en ventas realizadas menos los pagos)
+  // DEUDA VISTA VENDEDOR (Se basa estrictamente en ventas realizadas menos pagos reales)
   const myBaseCostSold = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
-  const myTotalPaid = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId).reduce((sum, p) => sum + (p.amount || 0), 0);
+  const myTotalPaid = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
   const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaid) : 0;
   
   // Métrica general de finanzas vendedor
@@ -656,7 +675,7 @@ export default function App() {
                           {posProfile.role === 'admin' && (
                             <td className="p-4 flex justify-end gap-2">
                               <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 bg-blue-50 rounded-lg"><IconEdit /></button>
-                              <button onClick={() => deleteItem(item.id)} className="p-2 text-red-600 bg-red-50 rounded-lg"><IconTrash /></button>
+                              <button onClick={() => deleteItem(item)} className="p-2 text-red-600 bg-red-50 rounded-lg"><IconTrash /></button>
                             </td>
                           )}
                         </tr>
@@ -692,7 +711,7 @@ export default function App() {
                            </span>
                            <div className="flex gap-2">
                              <button onClick={() => setEditingItem(item)} className="p-1.5 text-blue-600 bg-blue-50 rounded-lg"><IconEdit /></button>
-                             <button onClick={() => deleteItem(item.id)} className="p-1.5 text-red-600 bg-red-50 rounded-lg"><IconTrash /></button>
+                             <button onClick={() => deleteItem(item)} className="p-1.5 text-red-600 bg-red-50 rounded-lg"><IconTrash /></button>
                            </div>
                          </div>
                        )}
@@ -936,7 +955,10 @@ export default function App() {
                         <tbody className="divide-y divide-gray-50 text-sm">
                            {sellerToAdminPayments.map(p => (
                              <tr key={p.id} className="hover:bg-gray-50/50">
-                                <td className="p-4 font-medium text-gray-600">{p.date.split(',')[0]}</td>
+                                <td className="p-4 font-medium text-gray-600">
+                                  {p.date.split(',')[0]}
+                                  {p.type && <span className="ml-2 text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-bold">{p.type}</span>}
+                                </td>
                                 <td className="p-4 font-bold text-gray-900">{p.sellerName || 'Desconocido'}</td>
                                 <td className="p-4 font-black text-emerald-600">Q{p.amount.toFixed(2)}</td>
                                 <td className="p-4 flex items-center justify-end gap-2">
@@ -952,7 +974,10 @@ export default function App() {
                     <div className="md:hidden flex flex-col gap-3 p-4">
                         {sellerToAdminPayments.map(p => (
                             <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                                <div><div className="font-black text-gray-900">{p.sellerName || 'Desconocido'}</div><div className="text-[10px] text-gray-500 font-bold mt-0.5">{p.date.split(',')[0]}</div></div>
+                                <div>
+                                  <div className="font-black text-gray-900">{p.sellerName || 'Desconocido'}</div>
+                                  <div className="text-[10px] text-gray-500 font-bold mt-0.5">{p.date.split(',')[0]} {p.type && `• ${p.type}`}</div>
+                                </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <div className="font-black text-emerald-600">Q{p.amount.toFixed(2)}</div>
                                     <div className="flex gap-2">
@@ -1009,7 +1034,10 @@ export default function App() {
                         <tbody className="divide-y divide-gray-50 text-sm">
                            {myPaymentsHistory.map(p => (
                              <tr key={p.id} className="hover:bg-gray-50/50">
-                                <td className="p-4 font-medium text-gray-600">{p.date}</td>
+                                <td className="p-4 font-medium text-gray-600">
+                                  {p.date.split(',')[0]}
+                                  {p.type && <span className="ml-2 text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-bold">{p.type}</span>}
+                                </td>
                                 <td className="p-4 font-black text-emerald-600">Q{p.amount.toFixed(2)}</td>
                              </tr>
                            ))}
@@ -1020,7 +1048,7 @@ export default function App() {
                     <div className="md:hidden flex flex-col gap-3 p-4">
                        {myPaymentsHistory.map(p => (
                            <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                               <div className="text-xs font-bold text-gray-500">{p.date.split(',')[0]}</div>
+                               <div className="text-xs font-bold text-gray-500">{p.date.split(',')[0]} {p.type && `• ${p.type}`}</div>
                                <div className="font-black text-emerald-600 text-lg">Q{p.amount.toFixed(2)}</div>
                            </div>
                        ))}
