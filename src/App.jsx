@@ -472,6 +472,7 @@ export default function App() {
   const visibleHistory = posProfile?.role === 'admin'
     ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
+  // La deuda perfecta: Sincronizada con el costo base del stock en mano + el costo base de lo ya vendido, menos lo abonado al admin.
   const calculateSellerDebt = (sId) => {
     const currentInventoryDebt = inventory.filter(i => i.assignedTo === sId).reduce((sum, i) => sum + (i.weight * 40 * i.quantity), 0);
     const soldDebt = salesHistory.filter(s => s.sellerId === sId).reduce((sum, s) => sum + s.baseCostTotal, 0);
@@ -485,9 +486,12 @@ export default function App() {
   }));
 
   const totalSellersDebt = sellerDebts.reduce((sum, s) => sum + s.currentDebt, 0);
+  
+  // Métricas exclusivas para el panel de finanzas del Vendedor
   const myDebtToAdmin = posProfile?.role === 'seller' ? calculateSellerDebt(posProfile.sellerId) : 0;
   const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
   const myNetProfit = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.profit || 0), 0);
+  const myTotalSales = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + s.saleTotal, 0);
 
   // --- RENDERIZADOS ---
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white"><IconDiamond /> Cargando...</div>;
@@ -890,19 +894,24 @@ export default function App() {
                   <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden mb-6">
                     <div className="p-6 border-b border-gray-50 bg-gray-50/50">
                       <h2 className="text-xl font-black text-gray-900">Resumen de Cuenta</h2>
-                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tu rendimiento y tu deuda sincronizada con el administrador.</p>
+                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tu rendimiento y tu deuda de costo base sincronizada con el administrador.</p>
                     </div>
                     <div className="p-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="bg-red-50 p-6 rounded-3xl border border-red-200 text-center sm:text-left">
-                          <div className="text-sm font-bold text-red-600 uppercase mb-2">Deuda Total de Inventario</div>
-                          <div className="text-4xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
-                          <p className="text-[10px] text-red-500 font-bold mt-2 leading-tight">Inventario actual + Ventas realizadas - Abonos dados</p>
+                          <div className="text-[11px] font-bold text-red-600 uppercase mb-2">Deuda Costo Inventario</div>
+                          <div className="text-3xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
+                          <p className="text-[10px] text-red-500 font-bold mt-2 leading-tight">Costo base (Stock + Vendido) - Abonos</p>
+                        </div>
+                        <div className="bg-blue-50 p-6 rounded-3xl border border-blue-200 text-center sm:text-left">
+                          <div className="text-[11px] font-bold text-blue-600 uppercase mb-2">Total Ventas Brutas</div>
+                          <div className="text-3xl font-black text-blue-700">Q{myTotalSales.toFixed(2)}</div>
+                          <p className="text-[10px] text-blue-500 font-bold mt-2 leading-tight">Monto bruto total cobrado a los clientes</p>
                         </div>
                         <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 text-center sm:text-left">
-                          <div className="text-sm font-bold text-emerald-600 uppercase mb-2">Ganancia Neta Total</div>
-                          <div className="text-4xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
-                          <p className="text-[10px] text-emerald-500 font-bold mt-2 leading-tight">Suma de las ganancias de todas tus ventas</p>
+                          <div className="text-[11px] font-bold text-emerald-600 uppercase mb-2">Ganancia Neta Libre</div>
+                          <div className="text-3xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
+                          <p className="text-[10px] text-emerald-500 font-bold mt-2 leading-tight">Tu ganancia libre de las ventas realizadas</p>
                         </div>
                       </div>
                     </div>
