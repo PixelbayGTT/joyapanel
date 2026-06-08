@@ -40,7 +40,7 @@ const IconCart = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height
 const IconClose = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
 const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
 
-// --- COMPONENTE TARJETA DE VENTAS (MÁS PEQUEÑO) ---
+// --- COMPONENTE TARJETA DE VENTAS (MÁS PEQUEÑO Y COMPACTO) ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
   const suggestedPrice = item.weight * 80;
   const [currentPrice, setCurrentPrice] = useState(suggestedPrice);
@@ -186,14 +186,17 @@ export default function App() {
 
   const confirmAction = (message, action) => setConfirmDialog({ message, onConfirm: action });
 
-  // --- 1. MANEJO DE SESIÓN ---
+  // --- 1. MANEJO DE SESIÓN SEGURO Y CONEXIÓN ---
   useEffect(() => {
+    // Inicialización proactiva de autenticación para evitar el "Error de conexión"
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+        if (!auth.currentUser) {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
         }
       } catch (err) {
         console.error("Auth init error:", err);
@@ -220,6 +223,7 @@ export default function App() {
     
     const adminRefUid = posProfile.adminUid;
     const errorHandler = (err) => console.error("Firestore Error:", err);
+    // IMPORTANTE: Aseguramos que solo veamos los datos correspondientes al Administrador actual
     const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
 
     const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
@@ -252,13 +256,17 @@ export default function App() {
   const handleSellerLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     
-    // Asegurarnos de que el usuario de Firebase esté listo antes de consultar
-    if (!firebaseUser && !auth.currentUser) {
-       try { await signInAnonymously(auth); } 
-       catch(e) { console.error(e); }
-    }
-
     try {
+      // Validamos explícitamente y esperamos la autenticación silenciosa si no está lista
+      if (!auth.currentUser) {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      }
+
+      // Ahora que la conexión está garantizada, buscamos el PIN
       const globalPinRef = doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput);
       const pinSnap = await getDoc(globalPinRef);
 
@@ -273,7 +281,7 @@ export default function App() {
       }
     } catch (error) {
       console.error(error);
-      setAuthError("Error de conexión, intenta nuevamente.");
+      setAuthError("Error de red. Asegúrate de tener conexión.");
     }
   };
 
@@ -442,18 +450,20 @@ export default function App() {
   // --- CÁLCULOS FINANCIEROS Y DE DEUDA ---
   const cartTotal = cart.reduce((sum, item) => sum + item.saleTotal, 0);
   
+  // Filtros visuales dependiendo del rol
   const visibleInventory = posProfile?.role === 'admin' 
     ? inventory : inventory.filter(i => i.assignedTo === 'general' || i.assignedTo === posProfile?.sellerId);
+    
   const visibleHistory = posProfile?.role === 'admin'
     ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
   // Función Central de Deuda para Vendedores
   const calculateSellerDebt = (sId) => {
-    // 1. Costo Base del inventario que tiene ACTULAMENTE asignado y no ha vendido
+    // 1. Costo Base del inventario que tiene ACTUALMENTE asignado y no ha vendido
     const currentInventoryDebt = inventory.filter(i => i.assignedTo === sId).reduce((sum, i) => sum + (i.weight * 40 * i.quantity), 0);
-    // 2. Costo Base de lo que YA VENDIÓ
+    // 2. Costo Base de lo que YA VENDIÓ (se descuenta del inventario actual, así que el total se mantiene constante hasta que paga)
     const soldDebt = salesHistory.filter(s => s.sellerId === sId).reduce((sum, s) => sum + s.baseCostTotal, 0);
-    // 3. Pagos realizados al Admin
+    // 3. Pagos (Abonos) realizados al Admin
     const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId).reduce((sum, p) => sum + p.amount, 0);
     
     return (currentInventoryDebt + soldDebt) - totalPaid;
@@ -662,7 +672,7 @@ export default function App() {
                 </button>
               </div>
               {/* Cuadrícula más pequeña y compacta */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                 {visibleInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
                 {visibleInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
               </div>
