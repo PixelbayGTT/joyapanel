@@ -491,21 +491,27 @@ export default function App() {
 
   const handleDeletePayment = (paymentId) => confirmAction("¿Eliminar este abono del historial?", async () => await deleteDoc(getDocRef('sellerPayments', paymentId)));
 
-  // --- 8. FILTROS Y DEUDAS ---
+  // --- 8. FILTROS Y DEUDAS DUALES ---
   const generalInventory = inventory.filter(i => i.assignedTo === 'general');
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
-  const calculateSellerDebt = (sId) => {
-    const soldDebt = salesHistory.filter(s => s.sellerId === sId).reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
+  // DEUDA VISTA ADMIN (Se basa en las asignaciones de inventario menos los pagos)
+  const calculateAdminSellerDebt = (sId) => {
+    const assignedDebt = assignmentsHistory.filter(a => a.sellerId === sId).reduce((sum, a) => sum + (a.baseCostTotal || 0), 0);
     const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId).reduce((sum, p) => sum + (p.amount || 0), 0);
-    return soldDebt - totalPaid;
+    return assignedDebt - totalPaid;
   };
 
-  const sellerDebts = sellers.map(seller => ({ ...seller, currentDebt: calculateSellerDebt(seller.id) }));
+  const sellerDebts = sellers.map(seller => ({ ...seller, currentDebt: calculateAdminSellerDebt(seller.id) }));
   const totalSellersDebt = sellerDebts.reduce((sum, s) => sum + s.currentDebt, 0);
   
-  const myDebtToAdmin = posProfile?.role === 'seller' ? calculateSellerDebt(posProfile.sellerId) : 0;
+  // DEUDA VISTA VENDEDOR (Se basa estrictamente en ventas realizadas menos los pagos)
+  const myBaseCostSold = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
+  const myTotalPaid = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId).reduce((sum, p) => sum + (p.amount || 0), 0);
+  const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaid) : 0;
+  
+  // Métrica general de finanzas vendedor
   const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
   const myNetProfit = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.profit || 0), 0);
   const myTotalSales = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.saleTotal || 0), 0);
@@ -895,9 +901,9 @@ export default function App() {
                 <>
                   <div className="mx-4 md:mx-0 bg-gray-900 p-6 sm:p-8 rounded-3xl shadow-xl border text-white relative flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
-                      <div className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2"><IconWallet/> Deuda Total de Vendedores</div>
+                      <div className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2"><IconWallet/> Deuda Total (Inventario Asignado)</div>
                       <div className="text-5xl font-black">Q{totalSellersDebt.toFixed(2)}</div>
-                      <p className="text-xs text-gray-400 mt-2 font-medium">Suma del costo base de ventas realizadas - abonos recibidos</p>
+                      <p className="text-xs text-gray-400 mt-2 font-medium">Suma del costo base del inventario entregado a los vendedores - abonos recibidos</p>
                     </div>
                   </div>
                   
@@ -909,7 +915,7 @@ export default function App() {
                           <div className="flex justify-between items-start mb-4">
                              <div className="font-black text-gray-900 text-lg">{s.nombre}</div>
                              <div className="text-right">
-                               <div className="text-[10px] text-gray-400 font-bold uppercase">Deuda Total</div>
+                               <div className="text-[10px] text-gray-400 font-bold uppercase">Deuda de Inventario</div>
                                <div className={`font-black text-xl ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
                              </div>
                           </div>
@@ -965,25 +971,32 @@ export default function App() {
                   <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden mb-6">
                     <div className="p-6 border-b border-gray-50 bg-gray-50/50">
                       <h2 className="text-xl font-black text-gray-900">Resumen de Cuenta</h2>
-                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tu rendimiento y tu deuda de costo base sincronizada con el administrador.</p>
+                      <p className="text-sm text-gray-500 mt-1">Aquí verás tu rendimiento de forma transparente. Tu deuda se calcula exclusivamente sobre las ventas que has concretado.</p>
                     </div>
                     <div className="p-6">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-red-50 p-6 rounded-3xl border border-red-200 text-center sm:text-left">
-                          <div className="text-[11px] font-bold text-red-600 uppercase mb-2">Deuda por Ventas</div>
-                          <div className="text-3xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
-                          <p className="text-[10px] text-red-500 font-bold mt-2 leading-tight">Costo base de lo vendido - Abonos</p>
+                        
+                        <div className="bg-red-50 p-5 rounded-3xl border border-red-200 flex flex-col justify-center text-center sm:text-left shadow-inner">
+                          <div className="text-[11px] font-bold text-red-600 uppercase mb-1">Deuda (Ventas Realizadas)</div>
+                          <div className="text-3xl font-black text-red-700 mb-2">Q{myDebtToAdmin.toFixed(2)}</div>
+                          <div className="text-[10px] font-bold space-y-1.5 mt-auto pt-3 border-t border-red-200/60">
+                             <div className="flex justify-between text-red-800"><span>Costo Base Vendido:</span> <span>Q{myBaseCostSold.toFixed(2)}</span></div>
+                             <div className="flex justify-between text-emerald-600"><span>Abonos Realizados:</span> <span>- Q{myTotalPaid.toFixed(2)}</span></div>
+                          </div>
                         </div>
-                        <div className="bg-blue-50 p-6 rounded-3xl border border-blue-200 text-center sm:text-left">
+
+                        <div className="bg-blue-50 p-5 rounded-3xl border border-blue-200 flex flex-col justify-center text-center sm:text-left">
                           <div className="text-[11px] font-bold text-blue-600 uppercase mb-2">Total Ventas Brutas</div>
                           <div className="text-3xl font-black text-blue-700">Q{myTotalSales.toFixed(2)}</div>
-                          <p className="text-[10px] text-blue-500 font-bold mt-2 leading-tight">Monto bruto total cobrado a los clientes</p>
+                          <p className="text-[10px] text-blue-500 font-bold mt-2 leading-tight">Monto bruto total cobrado a los clientes.</p>
                         </div>
-                        <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 text-center sm:text-left">
+                        
+                        <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 flex flex-col justify-center text-center sm:text-left">
                           <div className="text-[11px] font-bold text-emerald-600 uppercase mb-2">Ganancia Neta Libre</div>
                           <div className="text-3xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
-                          <p className="text-[10px] text-emerald-500 font-bold mt-2 leading-tight">Tu ganancia libre de las ventas realizadas</p>
+                          <p className="text-[10px] text-emerald-500 font-bold mt-2 leading-tight">Tu ganancia libre de las ventas que concretaste.</p>
                         </div>
+
                       </div>
                     </div>
                   </div>
