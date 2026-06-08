@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -105,44 +105,6 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
   );
 };
 
-const AssignCard = ({ item, onAddToAssignCart, cartQty }) => {
-  const [assignQuantity, setAssignQuantity] = useState(1);
-  const [errorMsg, setErrorMsg] = useState('');
-  const availableQty = item.quantity - cartQty;
-  const baseCostUnit = item.weight * 40;
-
-  const handleAdd = () => {
-    if (assignQuantity > availableQty || assignQuantity <= 0) {
-      setErrorMsg("Stock insuficiente"); setTimeout(() => setErrorMsg(''), 2000); return;
-    }
-    onAddToAssignCart({
-      inventoryId: item.id, description: item.description, weight: item.weight,
-      quantity: assignQuantity, baseCostTotal: baseCostUnit * assignQuantity
-    });
-    setAssignQuantity(1);
-  };
-
-  return (
-    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex flex-col hover:shadow-md transition-shadow relative">
-      <div className="absolute top-4 right-4 bg-gray-100 px-3 py-1 rounded-full text-xs font-black text-gray-600">Stock Gral: {availableQty}</div>
-      <h3 className="font-black text-gray-800 text-lg mb-1 pr-24 leading-tight">{item.description}</h3>
-      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight}g &nbsp;•&nbsp; Costo Un.: Q{baseCostUnit.toFixed(2)}</p>
-
-      <div className="mt-auto space-y-4">
-        <div className="flex gap-2">
-          <div className="w-1/3">
-            <input type="number" min="1" max={availableQty} value={assignQuantity} onChange={(e) => setAssignQuantity(Number(e.target.value))} className="w-full h-full px-2 py-3 text-base bg-gray-50 border border-gray-200 rounded-2xl outline-none text-center font-bold text-gray-700" />
-          </div>
-          <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm flex items-center justify-center gap-2 ${availableQty === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
-            <IconSend /> {availableQty === 0 ? 'Agotado' : 'Asignar'}
-          </button>
-        </div>
-        {errorMsg && <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-600 text-lg font-black rounded-3xl z-10 animate-in fade-in zoom-in-95">{errorMsg}</div>}
-      </div>
-    </div>
-  );
-};
-
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -153,7 +115,6 @@ export default function App() {
   const [loginMode, setLoginMode] = useState('select');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
   const [sellerPinInput, setSellerPinInput] = useState('');
   const [authError, setAuthError] = useState('');
 
@@ -175,6 +136,13 @@ export default function App() {
   const [newSellerName, setNewSellerName] = useState('');
   const [newSellerCode, setNewSellerCode] = useState('');
 
+  // Formulario Orden de Asignación Directa
+  const [assignDesc, setAssignDesc] = useState('');
+  const [assignWeight, setAssignWeight] = useState('');
+  const [assignQty, setAssignQty] = useState('');
+  const [assignCart, setAssignCart] = useState([]);
+  const [selectedSellerToAssign, setSelectedSellerToAssign] = useState('');
+
   // Carrito Ventas
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -183,12 +151,6 @@ export default function App() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [initialPayment, setInitialPayment] = useState('');
-
-  // Carrito Asignaciones
-  const [assignCart, setAssignCart] = useState([]);
-  const [isAssignCartOpen, setIsAssignCartOpen] = useState(false);
-  const [assignCheckoutModalOpen, setAssignCheckoutModalOpen] = useState(false);
-  const [selectedSellerToAssign, setSelectedSellerToAssign] = useState('');
 
   // Modales
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -259,13 +221,11 @@ export default function App() {
   const handleAdminLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
-      let userCred;
-      if (isRegistering) userCred = await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
-      else userCred = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const userCred = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       const profile = { role: 'admin', adminUid: userCred.user.uid, nombre: 'Administrador' };
       setPosProfile(profile); localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
       setActiveTab('inventory');
-    } catch (error) { setAuthError("Credenciales incorrectas o correo ya registrado."); }
+    } catch (error) { setAuthError("Credenciales incorrectas."); }
   };
 
   const handleSellerLogin = async (e) => {
@@ -354,8 +314,25 @@ export default function App() {
     });
   };
 
-  // --- 6. LÓGICA ASIGNACIONES (ADMIN) ---
-  const handleAddToAssignCart = (item) => setAssignCart([...assignCart, { ...item, cartId: Date.now() + Math.random() }]);
+  // --- 6. LÓGICA ORDEN DE ASIGNACIÓN (ADMIN) ---
+  const handleAddDirectAssign = (e) => {
+    e.preventDefault();
+    if (!assignDesc || !assignWeight || !assignQty) return;
+    const weightNum = Number(assignWeight);
+    const qtyNum = Number(assignQty);
+    
+    const newItem = {
+      cartId: Date.now() + Math.random(),
+      description: assignDesc,
+      weight: weightNum,
+      quantity: qtyNum,
+      baseCostTotal: (weightNum * 40) * qtyNum
+    };
+    
+    setAssignCart([...assignCart, newItem]);
+    setAssignDesc(''); setAssignWeight(''); setAssignQty('');
+  };
+
   const removeFromAssignCart = (cartId) => setAssignCart(assignCart.filter(c => c.cartId !== cartId));
   const assignCartTotalCost = assignCart.reduce((sum, item) => sum + item.baseCostTotal, 0);
 
@@ -373,36 +350,42 @@ export default function App() {
     };
 
     try {
+      // Guardar el registro de la asignación
       await addDoc(getColRef('assignments'), newAssignment);
+      
+      // Crear directamente el inventario para el vendedor
       for (const cItem of assignCart) {
-        const genItem = inventory.find(i => i.id === cItem.inventoryId);
-        if (genItem) await updateDoc(getDocRef('inventory', genItem.id), { quantity: genItem.quantity - cItem.quantity });
-        
-        const existingSellerItem = inventory.find(i => i.assignedTo === sellerObj.id && i.description === cItem.description && i.weight === cItem.weight);
-        if (existingSellerItem) {
-          await updateDoc(getDocRef('inventory', existingSellerItem.id), { quantity: existingSellerItem.quantity + cItem.quantity });
-        } else {
-          await addDoc(getColRef('inventory'), {
-            adminUid: posProfile.adminUid, description: cItem.description, weight: cItem.weight, quantity: cItem.quantity,
-            cost: cItem.weight * 40, assignedTo: sellerObj.id, timestamp: Date.now()
-          });
-        }
+        await addDoc(getColRef('inventory'), {
+          adminUid: posProfile.adminUid, 
+          description: cItem.description, 
+          weight: cItem.weight, 
+          quantity: cItem.quantity,
+          cost: cItem.weight * 40, 
+          assignedTo: sellerObj.id, 
+          timestamp: Date.now()
+        });
       }
-      setAssignCart([]); setAssignCheckoutModalOpen(false); setIsAssignCartOpen(false);
+      
+      setAssignCart([]); setSelectedSellerToAssign('');
       setHistoryView('assignments'); setActiveTab('history');
     } catch (err) { console.error(err); }
   };
 
   const handleDeleteAssignment = (assignment) => {
-    confirmAction("¿Eliminar esta asignación? El inventario será devuelto a Caja General.", async () => {
+    confirmAction("¿Eliminar esta asignación? Se retirará el inventario asignado al vendedor.", async () => {
       try {
         for (const item of assignment.items) {
-          const genItem = inventory.find(i => i.assignedTo === 'general' && i.description === item.description && i.weight === item.weight);
-          if (genItem) await updateDoc(getDocRef('inventory', genItem.id), { quantity: genItem.quantity + item.quantity });
-          else await addDoc(getColRef('inventory'), { adminUid: posProfile.adminUid, description: item.description, weight: item.weight, quantity: item.quantity, cost: item.weight * 40, assignedTo: 'general', timestamp: Date.now() });
-
-          const sellerItem = inventory.find(i => i.assignedTo === assignment.sellerId && i.description === item.description && i.weight === item.weight);
-          if (sellerItem) await updateDoc(getDocRef('inventory', sellerItem.id), { quantity: Math.max(0, sellerItem.quantity - item.quantity) });
+          // Buscar la joya específica que se le asignó al vendedor en esa orden
+          const sellerItemsRef = inventory.filter(i => i.assignedTo === assignment.sellerId && i.description === item.description && i.weight === item.weight);
+          for (const sItem of sellerItemsRef) {
+             const newQty = Math.max(0, sItem.quantity - item.quantity);
+             if (newQty === 0) {
+               await deleteDoc(getDocRef('inventory', sItem.id));
+             } else {
+               await updateDoc(getDocRef('inventory', sItem.id), { quantity: newQty });
+             }
+             break; // Descuenta solo una vez por el tipo de item
+          }
         }
         await deleteDoc(getDocRef('assignments', assignment.id));
         setSelectedAssignmentDetails(null);
@@ -511,7 +494,6 @@ export default function App() {
   const handleDeletePayment = (paymentId) => confirmAction("¿Eliminar este abono del historial?", async () => await deleteDoc(getDocRef('sellerPayments', paymentId)));
 
   // --- 8. FILTROS Y DEUDAS DUALES ---
-  const generalInventory = inventory.filter(i => i.assignedTo === 'general');
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
@@ -558,10 +540,9 @@ export default function App() {
               <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} required placeholder="Correo electrónico" className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" />
               <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} required placeholder="Contraseña" className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" />
               {authError && <div className="text-red-500 text-xs font-bold text-center bg-red-50 p-2 rounded-lg">{authError}</div>}
-              <button type="submit" className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl">{isRegistering ? 'Crear Cuenta y Entrar' : 'Iniciar Sesión'}</button>
-              <div className="text-center pt-2 flex justify-between text-xs font-bold">
-                <button type="button" onClick={() => setLoginMode('select')} className="text-gray-400 hover:text-gray-600">← Volver</button>
-                <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="text-amber-600">{isRegistering ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}</button>
+              <button type="submit" className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl">Iniciar Sesión</button>
+              <div className="text-center pt-2">
+                <button type="button" onClick={() => setLoginMode('select')} className="text-xs font-bold text-gray-400 hover:text-gray-600">← Volver</button>
               </div>
             </form>
           )}
@@ -608,9 +589,9 @@ export default function App() {
             <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-all ml-2"><IconLogout /> Salir</button>
           </div>
 
-          {(activeTab === 'sales' || activeTab === 'assign') && (
-            <button onClick={() => activeTab === 'sales' ? setIsCartOpen(true) : setIsAssignCartOpen(true)} className="relative p-2.5 bg-amber-50 text-amber-700 rounded-full md:hidden">
-              <IconCart /> {(activeTab === 'sales' ? cart : assignCart).length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-md">{(activeTab === 'sales' ? cart : assignCart).length}</span>}
+          {(activeTab === 'sales') && (
+            <button onClick={() => setIsCartOpen(true)} className="relative p-2.5 bg-amber-50 text-amber-700 rounded-full md:hidden">
+              <IconCart /> {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-md">{cart.length}</span>}
             </button>
           )}
         </div>
@@ -629,7 +610,7 @@ export default function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto md:px-4 py-6 flex gap-6">
-        <div className={`flex-1 ${(activeTab === 'sales' && isCartOpen) || (activeTab === 'assign' && isAssignCartOpen) ? 'hidden md:block' : 'block'}`}>
+        <div className={`flex-1 ${activeTab === 'sales' && isCartOpen ? 'hidden md:block' : 'block'}`}>
           
           {/* TAB: INVENTARIO */}
           {activeTab === 'inventory' && (
@@ -757,19 +738,77 @@ export default function App() {
 
           {/* TAB: ASIGNAR (Admin Only) */}
           {activeTab === 'assign' && posProfile.role === 'admin' && (
-            <div className="px-4 md:px-0">
-              <div className="mb-4 flex justify-between items-center bg-blue-50 p-4 rounded-2xl border border-blue-100">
+            <div className="px-4 md:px-0 space-y-6">
+              <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-blue-50 p-6 rounded-2xl border border-blue-100 gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-blue-900 mb-0.5">Asignar a Vendedor</h2>
-                  <p className="text-xs font-bold text-blue-700">Selecciona el stock de Caja General que deseas entregar.</p>
+                  <h2 className="text-xl font-black text-blue-900 mb-1">Abrir Nueva Orden de Asignación</h2>
+                  <p className="text-sm font-bold text-blue-700">Agrega mercadería directamente al vendedor sin pasar por Caja General.</p>
                 </div>
-                <button onClick={() => setIsAssignCartOpen(!isAssignCartOpen)} className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all">
-                  <IconSend /> Ver Carrito Asignación {assignCart.length > 0 && <span className="bg-white text-blue-600 px-2 py-0.5 rounded-full text-xs font-black">{assignCart.length}</span>}
-                </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {generalInventory.map(item => <AssignCard key={item.id} item={item} onAddToAssignCart={handleAddToAssignCart} cartQty={assignCart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
-                {generalInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No hay inventario en Caja General para asignar.</div>}
+
+              {/* Formulario para agregar a la orden */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
+                <h3 className="font-bold text-gray-800 mb-4">1. Agregar Joya a la Orden</h3>
+                <form onSubmit={handleAddDirectAssign} className="flex flex-col md:flex-row gap-4 items-end">
+                  <div className="w-full md:flex-1">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descripción</label>
+                    <input type="text" value={assignDesc} onChange={e=>setAssignDesc(e.target.value)} placeholder="Ej. Cadena de Oro 14k" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                  </div>
+                  <div className="w-full md:w-32">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Peso (g)</label>
+                    <input type="number" step="0.01" value={assignWeight} onChange={e=>setAssignWeight(e.target.value)} placeholder="0.00" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                  </div>
+                  <div className="w-full md:w-32">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cantidad</label>
+                    <input type="number" value={assignQty} onChange={e=>setAssignQty(e.target.value)} placeholder="1" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" required />
+                  </div>
+                  <button type="submit" className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex items-center justify-center gap-2">
+                    Añadir a Orden
+                  </button>
+                </form>
+              </div>
+
+              {/* Detalle de la Orden */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-5 border-b border-gray-50 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                  <h3 className="font-bold text-gray-800">2. Detalle de la Orden ({assignCart.length} piezas)</h3>
+                  <span className="font-black text-red-600">Total Deuda: Q{assignCartTotalCost.toFixed(2)}</span>
+                </div>
+                
+                <div className="p-5">
+                  {assignCart.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 font-bold">La orden está vacía. Agrega mercadería arriba.</div>
+                  ) : (
+                    <div className="space-y-3 mb-6">
+                      {assignCart.map(c => (
+                        <div key={c.cartId} className="flex justify-between items-center p-3 border rounded-xl bg-gray-50">
+                          <div>
+                            <div className="font-black text-gray-800">{c.description}</div>
+                            <div className="text-xs text-gray-500 font-bold">{c.quantity}x {c.weight}g (Costo: Q{(c.baseCostTotal/c.quantity).toFixed(2)} c/u)</div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-black text-red-600">Q{c.baseCostTotal.toFixed(2)}</span>
+                            <button onClick={() => removeFromAssignCart(c.cartId)} className="text-gray-400 hover:text-red-500"><IconTrash /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Confirmación y Selección de Vendedor */}
+                  <form onSubmit={processAssignment} className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex flex-col md:flex-row gap-4 items-end">
+                    <div className="flex-1 w-full">
+                      <label className="block text-xs font-bold text-blue-800 uppercase mb-2">3. Selecciona el Vendedor a Asignar</label>
+                      <select value={selectedSellerToAssign} onChange={e=>setSelectedSellerToAssign(e.target.value)} className="w-full px-3 py-3 border border-blue-200 rounded-xl font-black text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none" required>
+                        <option value="" disabled>-- Elige un vendedor --</option>
+                        {sellers.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                      </select>
+                    </div>
+                    <button type="submit" disabled={assignCart.length === 0} className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
+                      Cerrar Orden y Asignar
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           )}
@@ -1086,33 +1125,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* CARRITO DE ASIGNACIONES LATERAL */}
-        {activeTab === 'assign' && isAssignCartOpen && (
-          <div className="fixed inset-0 z-40 flex md:relative md:w-80 md:flex-shrink-0">
-            <div className="fixed inset-0 bg-black/40 md:hidden" onClick={() => setIsAssignCartOpen(false)}></div>
-            <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col md:relative md:rounded-2xl md:border h-full">
-              <div className="p-4 border-b flex justify-between items-center bg-blue-50 rounded-t-2xl">
-                <h3 className="font-black flex items-center gap-2 text-blue-900"><IconSend /> Asignación</h3>
-                <button onClick={() => setIsAssignCartOpen(false)} className="md:hidden text-blue-600"><IconClose /></button>
-              </div>
-              <div className="flex-grow overflow-y-auto p-4 space-y-3">
-                {assignCart.map(c => (
-                  <div key={c.cartId} className="bg-white p-3 rounded-xl border relative pr-8">
-                    <div className="text-sm font-black truncate text-gray-800">{c.description}</div>
-                    <div className="text-xs text-gray-500 mt-1">{c.quantity}x Q{(c.baseCostTotal/c.quantity).toFixed(2)} = <b className="text-red-500">Q{c.baseCostTotal.toFixed(2)}</b></div>
-                    <button onClick={() => removeFromAssignCart(c.cartId)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"><IconClose /></button>
-                  </div>
-                ))}
-                {assignCart.length === 0 && <div className="text-center text-sm text-gray-400 mt-10 font-bold">Añade joyas para asignar.</div>}
-              </div>
-              <div className="p-5 border-t bg-gray-50 rounded-b-2xl">
-                <div className="flex justify-between items-center mb-4"><span className="font-bold text-gray-500 text-xs uppercase">Deuda Total:</span><span className="text-2xl font-black text-red-600">Q{assignCartTotalCost.toFixed(2)}</span></div>
-                <button onClick={() => setAssignCheckoutModalOpen(true)} disabled={assignCart.length === 0} className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 transition-colors">Seleccionar Vendedor</button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* MODALES REUTILIZABLES */}
@@ -1131,32 +1143,6 @@ export default function App() {
                 <select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="w-1/2 px-3 py-2.5 border rounded-xl font-bold"><option>Efectivo</option><option>Transferencia</option></select>
               </div>
               <button type="submit" className="w-full mt-4 py-3.5 bg-amber-500 text-white font-black rounded-xl text-lg">Confirmar Venta</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Checkout de Asignación (Solo Admin) */}
-      {assignCheckoutModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="p-5 bg-blue-50 border-b flex justify-between"><h3 className="font-black text-blue-900">Confirmar Asignación</h3><button onClick={() => setAssignCheckoutModalOpen(false)} className="text-blue-600"><IconClose/></button></div>
-            <form onSubmit={processAssignment} className="p-6 space-y-4">
-              <div className="bg-red-50 p-4 rounded-2xl flex justify-between items-center border border-red-100">
-                 <div>
-                    <span className="font-bold text-red-800 text-sm block">Deuda Base:</span>
-                    <span className="text-xs text-red-500">Costo total del lote</span>
-                 </div>
-                 <span className="text-3xl font-black text-red-600">Q{assignCartTotalCost.toFixed(2)}</span>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Selecciona el Vendedor</label>
-                <select value={selectedSellerToAssign} onChange={e=>setSelectedSellerToAssign(e.target.value)} className="w-full px-3 py-3.5 border rounded-xl font-black text-gray-800 bg-gray-50" required>
-                  <option value="" disabled>-- Elige un vendedor --</option>
-                  {sellers.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="w-full mt-4 py-3.5 bg-blue-600 text-white font-black rounded-xl text-lg hover:bg-blue-700 transition-colors">Confirmar y Asignar</button>
             </form>
           </div>
         </div>
@@ -1219,8 +1205,11 @@ export default function App() {
               </div>
               
               <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex justify-between items-center">
-                 <div className="text-red-800 font-bold text-xs uppercase tracking-wide">Total Deuda Costo Base</div>
-                 <div className="text-xl font-black text-red-600">Q{selectedAssignmentDetails.baseCostTotal.toFixed(2)}</div>
+                 <div>
+                    <span className="font-bold text-red-800 text-sm block">Deuda Base:</span>
+                    <span className="text-xs text-red-500">Costo total del lote</span>
+                 </div>
+                 <span className="text-xl font-black text-red-600">Q{selectedAssignmentDetails.baseCostTotal.toFixed(2)}</span>
               </div>
 
               <div>
