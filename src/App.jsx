@@ -41,27 +41,36 @@ const IconClose = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" heigh
 const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
 const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 
-// --- COMPONENTE TARJETA DE VENTAS ---
+// --- COMPONENTE TARJETA DE VENTAS (MÓVIL Y AMIGABLE) ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
   const suggestedPrice = item.weight * 80;
-  const [currentPrice, setCurrentPrice] = useState(suggestedPrice);
+  // Usamos un string para permitir que el input esté completamente vacío
+  const [currentPriceStr, setCurrentPriceStr] = useState(suggestedPrice.toString());
   const [sellQuantity, setSellQuantity] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const currentPrice = currentPriceStr === '' ? 0 : Number(currentPriceStr);
   const availableQty = item.quantity - cartQty;
   const difference = currentPrice - suggestedPrice;
   
-  let messageColor = "text-gray-500 bg-gray-100";
+  let messageColor = "text-gray-900 bg-gray-50 border-gray-200 focus:border-amber-500 focus:ring-amber-500";
 
-  if (difference < -0.01) {
-    messageColor = "text-red-700 bg-red-100 border-red-200";
-  } else if (difference > 0.01) {
-    messageColor = "text-emerald-700 bg-emerald-100 border-emerald-200";
+  if (currentPriceStr !== '') {
+    if (difference < -0.01) {
+      messageColor = "text-red-700 bg-red-50 border-red-200 focus:border-red-500 focus:ring-red-500";
+    } else if (difference > 0.01) {
+      messageColor = "text-emerald-700 bg-emerald-50 border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500";
+    }
   }
 
   const handleAdd = () => {
     if (sellQuantity > availableQty || sellQuantity <= 0) {
-      setErrorMsg("Error");
+      setErrorMsg("Stock insuficiente");
+      setTimeout(() => setErrorMsg(''), 2000);
+      return;
+    }
+    if (currentPriceStr === '') {
+      setErrorMsg("Ingresa un precio");
       setTimeout(() => setErrorMsg(''), 2000);
       return;
     }
@@ -77,52 +86,52 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
       difference
     });
     setSellQuantity(1);
-    setCurrentPrice(suggestedPrice);
+    setCurrentPriceStr(suggestedPrice.toString());
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-      <div className="h-28 w-full bg-gray-50 relative">
-        {item.image ? (
-          <img src={item.image} alt={item.description} className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex items-center justify-center h-full text-gray-400"><IconImage /></div>
-        )}
-        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-gray-700 shadow-sm">
-          Stock: {availableQty}
-        </div>
+    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex flex-col hover:shadow-md transition-shadow relative">
+      <div className="absolute top-4 right-4 bg-gray-100 px-3 py-1 rounded-full text-xs font-black text-gray-600">
+        Stock: {availableQty}
       </div>
-      <div className="p-3 flex-grow flex flex-col">
-        <h3 className="font-bold text-gray-800 text-sm mb-0.5 line-clamp-1">{item.description}</h3>
-        <p className="text-gray-500 text-[10px] mb-2 font-medium">Peso: {item.weight}g</p>
-        <div className="mt-auto space-y-2">
-          <div>
-            <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Precio Venta (Q)</label>
-            <input type="number" value={currentPrice} onChange={(e) => setCurrentPrice(Number(e.target.value))} className={`w-full px-2 py-1 text-xs border rounded focus:ring-1 outline-none font-bold ${messageColor}`} step="0.01" />
-            
-            {/* INDICADOR DE DESCUENTO O GANANCIA ADICIONAL */}
-            {difference < -0.01 && (
-              <div className="text-[10px] text-red-600 font-bold mt-1 leading-none animate-in fade-in">
-                ↓ Q{Math.abs(difference).toFixed(2)} de descuento
-              </div>
-            )}
-            {difference > 0.01 && (
-              <div className="text-[10px] text-emerald-600 font-bold mt-1 leading-none animate-in fade-in">
-                ↑ Q{Math.abs(difference).toFixed(2)} extra
-              </div>
+      <h3 className="font-black text-gray-800 text-lg mb-1 pr-20 leading-tight">{item.description}</h3>
+      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight}g &nbsp;•&nbsp; Sugerido: Q{suggestedPrice.toFixed(2)}</p>
+
+      <div className="mt-auto space-y-4">
+        <div className="relative">
+          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-1">Precio de Venta (Q)</label>
+          <input 
+            type="number" 
+            value={currentPriceStr} 
+            onChange={(e) => setCurrentPriceStr(e.target.value)} 
+            className={`w-full px-4 py-3 text-lg border rounded-2xl outline-none font-black transition-colors ${messageColor}`} 
+            step="0.01" 
+            placeholder="0.00"
+          />
+          
+          {/* INDICADOR PERMANENTE */}
+          <div className="mt-2 ml-1 text-xs font-bold h-4">
+            {currentPriceStr === '' ? (
+              <span className="text-amber-500">Ingresa un precio de venta</span>
+            ) : difference < -0.01 ? (
+              <span className="text-red-500">↓ Q{Math.abs(difference).toFixed(2)} de descuento</span>
+            ) : difference > 0.01 ? (
+              <span className="text-emerald-500">↑ Q{Math.abs(difference).toFixed(2)} extra</span>
+            ) : (
+              <span className="text-gray-400">✓ Precio Sugerido</span>
             )}
           </div>
-          <div className="flex gap-1.5 items-end">
-            <div className="w-1/3">
-              <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Cant.</label>
-              <input type="number" min="1" max={availableQty} value={sellQuantity} onChange={(e) => setSellQuantity(Number(e.target.value))} className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none text-center" />
-            </div>
-            <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-1 px-1 rounded font-bold text-xs transition-all shadow-sm ${availableQty === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white'}`}>
-              {availableQty === 0 ? 'Agotado' : 'Añadir'}
-            </button>
-          </div>
-          {errorMsg && <div className="text-center text-[10px] text-red-600 font-bold animate-pulse">{errorMsg}</div>}
         </div>
+
+        <div className="flex gap-2">
+          <div className="w-1/3">
+            <input type="number" min="1" max={availableQty} value={sellQuantity} onChange={(e) => setSellQuantity(Number(e.target.value))} className="w-full h-full px-2 py-3 text-base bg-gray-50 border border-gray-200 rounded-2xl outline-none text-center font-bold text-gray-700" />
+          </div>
+          <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm ${availableQty === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white active:scale-95'}`}>
+            {availableQty === 0 ? 'Agotado' : 'Añadir'}
+          </button>
+        </div>
+        {errorMsg && <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-600 text-lg font-black rounded-3xl z-10 animate-in fade-in zoom-in-95">{errorMsg}</div>}
       </div>
     </div>
   );
@@ -689,7 +698,8 @@ export default function App() {
                   <IconCart /> Ver Carrito {cart.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-xs">{cart.length}</span>}
                 </button>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {/* Cambiada la cuadrícula a un diseño de tarjetas grandes para móviles y amigables */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {visibleInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
                 {visibleInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
               </div>
@@ -850,7 +860,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODALES REUTILIZABLES... (No se alteraron sustancialmente) */}
+      {/* MODALES REUTILIZABLES... */}
       {checkoutModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
