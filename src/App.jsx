@@ -76,7 +76,8 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
       baseCostTotal: (item.weight * 40) * sellQuantity,
       saleTotal: currentPrice * sellQuantity,
       profit: (currentPrice * sellQuantity) - ((item.weight * 40) * sellQuantity),
-      priceMessage
+      priceMessage,
+      difference // Guardamos la diferencia para mostrar en el historial
     });
     setSellQuantity(1);
     setCurrentPrice(suggestedPrice);
@@ -168,20 +169,28 @@ export default function App() {
 
   // Estados Modales Acciones
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
+  
   const [abonoModalOpen, setAbonoModalOpen] = useState(false);
   const [abonoOrder, setAbonoOrder] = useState(null);
   const [abonoAmount, setAbonoAmount] = useState('');
   const [abonoMethod, setAbonoMethod] = useState('Efectivo');
 
+  // Edición de Orden
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editPaidAmount, setEditPaidAmount] = useState('');
+
+  // Finanzas y Pagos Admin
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [providerPaymentAmount, setProviderPaymentAmount] = useState('');
 
   const [adminAbonoModalOpen, setAdminAbonoModalOpen] = useState(false);
   const [adminAbonoAmount, setAdminAbonoAmount] = useState('');
+  const [sellerToPay, setSellerToPay] = useState(null); // Qué vendedor está abonando al admin
 
   // --- 1. MANEJO DE SESIÓN Y PERSISTENCIA ---
   useEffect(() => {
-    // Intentar recuperar sesión guardada en localStorage
     const savedProfile = localStorage.getItem('joyapanel_profile');
     if (savedProfile) {
       setPosProfile(JSON.parse(savedProfile));
@@ -202,7 +211,6 @@ export default function App() {
   useEffect(() => {
     if (!posProfile) return;
     
-    // Todos los datos se guardan bajo el ID del Administrador Maestro (adminUid)
     const adminRefUid = posProfile.adminUid;
     const getPath = (col) => collection(db, 'artifacts', appId, 'users', adminRefUid, col);
 
@@ -240,10 +248,7 @@ export default function App() {
   const handleSellerLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
-      // Login anónimo en Firebase para tener acceso a lectura
       await signInAnonymously(auth);
-      
-      // Buscar el PIN en la colección global de vendedores
       const globalPinRef = doc(db, 'artifacts', appId, 'globalSellers', sellerPinInput);
       const pinSnap = await getDoc(globalPinRef);
 
@@ -269,15 +274,15 @@ export default function App() {
   };
 
   // --- 4. LÓGICA DEL SISTEMA ---
+  
+  // ADMIN: VENDEDORES
   const handleAddSeller = async (e) => {
     e.preventDefault();
-    // 1. Guardar en la base de datos del Admin
     const sellerDoc = await addDoc(getColRef('vendedores'), {
       nombre: newSellerName,
       pin: newSellerCode,
       createdAt: Date.now()
     });
-    // 2. Guardar en la base global para que el PIN pueda ser buscado sin login previo
     await setDoc(doc(db, 'artifacts', appId, 'globalSellers', newSellerCode), {
       adminUid: posProfile.adminUid,
       sellerId: sellerDoc.id,
@@ -287,10 +292,12 @@ export default function App() {
   };
 
   const deleteSeller = async (id, pin) => {
+    if(!window.confirm("¿Seguro que deseas eliminar este vendedor?")) return;
     await deleteDoc(getDocRef('vendedores', id));
     await deleteDoc(doc(db, 'artifacts', appId, 'globalSellers', pin));
   };
 
+  // ADMIN: INVENTARIO
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (!newDesc || !newWeight || !newQty) return;
@@ -300,6 +307,32 @@ export default function App() {
     });
     setNewDesc(''); setNewWeight(''); setNewQty(''); setNewImage(''); setAssignTo('general');
   };
+
+  const handleEditSave = async (e) => {
+    e.preventDefault();
+    await updateDoc(getDocRef('inventory', editingItem.id), {
+      description: editingItem.description,
+      weight: Number(editingItem.weight),
+      quantity: Number(editingItem.quantity),
+      image: editingItem.image,
+      cost: Number(editingItem.weight) * 40,
+      assignedTo: editingItem.assignedTo || 'general'
+    });
+    setEditingItem(null);
+  };
+
+  const deleteItem = async (id) => {
+    if(window.confirm("¿Eliminar esta joya del inventario?")) {
+      await deleteDoc(getDocRef('inventory', id));
+    }
+  };
+
+  // VENTAS Y CARRITO
+  const handleAddToCart = (item) => {
+    const newCartItem = { ...item, cartId: Date.now() + Math.random() };
+    setCart([...cart, newCartItem]);
+  };
+  const removeFromCart = (cartId) => setCart(cart.filter(c => c.cartId !== cartId));
 
   const processCheckout = async (e) => {
     e.preventDefault();
@@ -332,6 +365,40 @@ export default function App() {
     setActiveTab('history');
   };
 
+  // HISTORIAL: EDITAR / ELIMINAR ORDEN
+  const handleDeleteOrder = async (order) => {
+    if(!window.confirm("¿Seguro que deseas eliminar esta orden? El inventario será restaurado.")) return;
+    
+    // Restaurar inventario
+    for (const item of order.items) {
+      const invDocRef = getDocRef('inventory', item.inventoryId);
+      const invSnap = await getDoc(invDocRef);
+      if(invSnap.exists()) {
+        await updateDoc(invDocRef, { quantity: invSnap.data().quantity + item.quantity });
+      }
+    }
+    // Eliminar orden
+    await deleteDoc(getDocRef('sales', order.id));
+    setSelectedOrderDetails(null);
+  };
+
+  const handleEditOrderSubmit = async (e) => {
+    e.preventDefault();
+    const newPaidAmount = Number(editPaidAmount);
+    if(newPaidAmount > editingOrder.saleTotal) return;
+
+    const newBalance = editingOrder.saleTotal - newPaidAmount;
+    
+    await updateDoc(getDocRef('sales', editingOrder.id), {
+      customerName: editCustomerName,
+      customerPhone: editCustomerPhone,
+      paidAmount: newPaidAmount,
+      balance: newBalance,
+      status: newBalance <= 0 ? 'Pagada' : 'Pendiente'
+    });
+    setEditingOrder(null);
+  };
+
   const processAbonoCliente = async (e) => {
     e.preventDefault();
     const amount = Number(abonoAmount);
@@ -341,11 +408,12 @@ export default function App() {
     await updateDoc(getDocRef('sales', abonoOrder.id), {
       paidAmount: newPaidAmount, balance: newBalance,
       status: newBalance <= 0 ? 'Pagada' : 'Pendiente',
-      payments: [...abonoOrder.payments, { id: Date.now(), date: new Date().toLocaleString(), amount, method: abonoMethod, type: 'Abono' }]
+      payments: [...(abonoOrder.payments||[]), { id: Date.now(), date: new Date().toLocaleString(), amount, method: abonoMethod, type: 'Abono' }]
     });
     setAbonoModalOpen(false); setAbonoAmount(''); setAbonoOrder(null);
   };
 
+  // FINANZAS PAGOS
   const processAbonoProveedor = async (e) => {
     e.preventDefault();
     await addDoc(getColRef('providerPayments'), { amount: Number(providerPaymentAmount), date: new Date().toLocaleString(), timestamp: Date.now() });
@@ -354,10 +422,11 @@ export default function App() {
 
   const processAbonoAdmin = async (e) => {
     e.preventDefault();
+    // Admin registra que el vendedor le pagó la deuda
     await addDoc(getColRef('sellerPayments'), {
-      sellerId: posProfile.sellerId, amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
+      sellerId: sellerToPay.id, amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
     });
-    setAdminAbonoModalOpen(false); setAdminAbonoAmount('');
+    setAdminAbonoModalOpen(false); setAdminAbonoAmount(''); setSellerToPay(null);
   };
 
   // --- 5. CÁLCULOS FINANCIEROS Y FILTROS ---
@@ -378,7 +447,6 @@ export default function App() {
 
   // Finanzas Vendedor Específico
   const mySales = posProfile?.role === 'seller' ? salesHistory.filter(s => s.sellerId === posProfile.sellerId) : [];
-  const myTotalSales = mySales.reduce((acc, s) => acc + s.saleTotal, 0);
   const myNetProfit = mySales.reduce((acc, s) => acc + s.profit, 0);
   const myTotalCostOwed = mySales.reduce((acc, s) => acc + s.baseCostTotal, 0);
   const myTotalPaidToAdmin = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId).reduce((acc, p) => acc + p.amount, 0);
@@ -455,11 +523,9 @@ export default function App() {
           
           <div className="flex space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar">
             {posProfile.role === 'admin' && (
-              <>
-                <button onClick={() => setActiveTab('inventory')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconList /> <span className="hidden md:inline">Inventario</span></button>
-                <button onClick={() => setActiveTab('sellers')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'sellers' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconUsers /> <span className="hidden md:inline">Vendedores</span></button>
-              </>
+              <button onClick={() => setActiveTab('sellers')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'sellers' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconUsers /> <span className="hidden md:inline">Vendedores</span></button>
             )}
+            <button onClick={() => setActiveTab('inventory')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconList /> <span className="hidden md:inline">Inventario</span></button>
             <button onClick={() => setActiveTab('sales')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'sales' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconTag /> <span className="hidden md:inline">Ventas</span></button>
             <button onClick={() => setActiveTab('history')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconHistory /> <span className="hidden md:inline">Historial</span></button>
             <button onClick={() => setActiveTab('finance')} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}><IconWallet /> <span className="hidden md:inline">Finanzas</span></button>
@@ -477,46 +543,54 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
         <div className={`flex-1 ${activeTab === 'sales' && isCartOpen ? 'hidden md:block' : 'block'}`}>
           
-          {/* TAB: INVENTARIO (Admin) */}
-          {activeTab === 'inventory' && posProfile.role === 'admin' && (
+          {/* TAB: INVENTARIO (Admin y Vendedor) */}
+          {activeTab === 'inventory' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
-                <h2 className="text-lg font-black mb-4">Registrar Joya</h2>
-                <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="sm:col-span-2"><input type="text" value={newDesc} onChange={e=>setNewDesc(e.target.value)} placeholder="Descripción" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
-                  <div><input type="number" step="0.01" value={newWeight} onChange={e=>setNewWeight(e.target.value)} placeholder="Peso (g)" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
-                  <div><input type="number" value={newQty} onChange={e=>setNewQty(e.target.value)} placeholder="Cant." className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
-                  <div>
-                    <select value={assignTo} onChange={e=>setAssignTo(e.target.value)} className="w-full px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900">
-                      <option value="general">Caja General</option>
-                      {sellers.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-4"><input type="url" value={newImage} onChange={e=>setNewImage(e.target.value)} placeholder="URL de Imagen (Opcional)" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" /></div>
-                  <button type="submit" className="w-full py-2.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800">Guardar</button>
-                </form>
-              </div>
+              {/* Formulario de Creación SOLO para Admin */}
+              {posProfile.role === 'admin' && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
+                  <h2 className="text-lg font-black mb-4">Registrar Joya</h2>
+                  <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="sm:col-span-2"><input type="text" value={newDesc} onChange={e=>setNewDesc(e.target.value)} placeholder="Descripción" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
+                    <div><input type="number" step="0.01" value={newWeight} onChange={e=>setNewWeight(e.target.value)} placeholder="Peso (g)" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
+                    <div><input type="number" value={newQty} onChange={e=>setNewQty(e.target.value)} placeholder="Cant." className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" required /></div>
+                    <div>
+                      <select value={assignTo} onChange={e=>setAssignTo(e.target.value)} className="w-full px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900">
+                        <option value="general">Caja General</option>
+                        {sellers.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                      </select>
+                    </div>
+                    <div className="md:col-span-4"><input type="url" value={newImage} onChange={e=>setNewImage(e.target.value)} placeholder="URL de Imagen (Opcional)" className="w-full px-3 py-2.5 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" /></div>
+                    <button type="submit" className="w-full py-2.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800">Guardar</button>
+                  </form>
+                </div>
+              )}
 
+              {/* Tabla de Inventario (Con acciones para Admin, Solo Lectura para Vendedor) */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-4 border-b border-gray-50 bg-gray-50/50"><h3 className="font-bold text-gray-800">Mi Inventario Asignado</h3></div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse whitespace-nowrap">
-                    <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Joya</th><th className="p-4 font-bold border-b">Asignado</th><th className="p-4 font-bold border-b">Stock</th><th className="p-4 font-bold border-b">Costo</th><th className="p-4 font-bold border-b text-right">Acciones</th></tr></thead>
+                    <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Joya</th>{posProfile.role === 'admin' && <th className="p-4 font-bold border-b">Asignado</th>}<th className="p-4 font-bold border-b">Stock</th><th className="p-4 font-bold border-b">Peso</th>{posProfile.role === 'admin' && <th className="p-4 font-bold border-b text-right">Acciones</th>}</tr></thead>
                     <tbody className="divide-y divide-gray-50 text-sm">
-                      {inventory.map(item => (
+                      {visibleInventory.map(item => (
                         <tr key={item.id} className="hover:bg-gray-50/50">
                           <td className="p-4 font-bold text-gray-800 flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden shrink-0 border">{item.image ? <img src={item.image} className="w-full h-full object-cover"/> : <IconImage/>}</div>
-                            <span>{item.description} <br/><span className="text-xs text-gray-400 font-medium">{item.weight}g</span></span>
+                            <span>{item.description}</span>
                           </td>
-                          <td className="p-4"><span className="px-2 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-600">{item.assignedTo === 'general' ? 'General' : sellers.find(s=>s.id===item.assignedTo)?.nombre || 'Desconocido'}</span></td>
+                          {posProfile.role === 'admin' && <td className="p-4"><span className="px-2 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-600">{item.assignedTo === 'general' ? 'General' : sellers.find(s=>s.id===item.assignedTo)?.nombre || 'Desconocido'}</span></td>}
                           <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-black ${item.quantity>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity}</span></td>
-                          <td className="p-4 font-medium">Q{item.cost.toFixed(2)}</td>
-                          <td className="p-4 flex justify-end gap-2">
-                            <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 bg-blue-50 rounded-lg"><IconEdit /></button>
-                            <button onClick={() => deleteDoc(getDocRef('inventory', item.id))} className="p-2 text-red-600 bg-red-50 rounded-lg"><IconTrash /></button>
-                          </td>
+                          <td className="p-4 font-medium">{item.weight}g</td>
+                          {posProfile.role === 'admin' && (
+                            <td className="p-4 flex justify-end gap-2">
+                              <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 bg-blue-50 rounded-lg"><IconEdit /></button>
+                              <button onClick={() => deleteItem(item.id)} className="p-2 text-red-600 bg-red-50 rounded-lg"><IconTrash /></button>
+                            </td>
+                          )}
                         </tr>
                       ))}
+                      {visibleInventory.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-gray-500">No hay inventario disponible.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -567,6 +641,7 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                 {visibleInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
+                {visibleInventory.length === 0 && <div className="col-span-3 text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
               </div>
             </div>
           )}
@@ -582,7 +657,7 @@ export default function App() {
                     {visibleHistory.map(order => (
                       <tr key={order.id} className="hover:bg-gray-50/50">
                         <td className="p-4">
-                          <div className="font-black text-gray-900">{order.orderNumber}</div>
+                          <div className="font-black text-gray-900 cursor-pointer text-blue-600 hover:underline" onClick={() => setSelectedOrderDetails(order)}>{order.orderNumber}</div>
                           <div className="text-xs text-gray-500 font-medium">{order.customerName} - {order.date.split(',')[0]}</div>
                         </td>
                         <td className="p-4 font-black text-gray-900">Q{order.saleTotal.toFixed(2)}</td>
@@ -590,10 +665,12 @@ export default function App() {
                         <td className="p-4"><span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${order.status==='Pagada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{order.status}</span></td>
                         <td className="p-4 flex items-center justify-end gap-2">
                           {order.status === 'Pendiente' && <button onClick={() => {setAbonoOrder(order); setAbonoModalOpen(true);}} className="text-xs font-bold bg-amber-500 text-white px-3 py-1.5 rounded-lg">Abonar</button>}
-                          <button onClick={() => setSelectedOrderDetails(order)} className="text-xs font-bold border px-3 py-1.5 rounded-lg text-gray-700">Detalles</button>
+                          <button onClick={() => { setEditingOrder(order); setEditCustomerName(order.customerName); setEditCustomerPhone(order.customerPhone || ''); setEditPaidAmount(order.paidAmount); }} className="text-xs font-bold border bg-gray-50 px-3 py-1.5 rounded-lg text-gray-700">Editar</button>
+                          <button onClick={() => handleDeleteOrder(order)} className="text-xs font-bold border bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100"><IconTrash/></button>
                         </td>
                       </tr>
                     ))}
+                    {visibleHistory.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-gray-500">No hay ventas registradas.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -611,52 +688,56 @@ export default function App() {
                       <div className="text-xs font-bold text-gray-400 uppercase mb-2">Ingresos Totales (Ventas)</div>
                       <div className="text-3xl font-black text-gray-900">Q{totalSalesRevenue.toFixed(2)}</div>
                     </div>
-                    <div className="bg-amber-500 p-6 rounded-2xl shadow-md border border-amber-600 text-white relative">
-                      <div className="text-xs font-bold text-amber-100 uppercase mb-2">Deuda Proveedor (Costo)</div>
+                    <div className="bg-gray-900 p-6 rounded-2xl shadow-md border text-white relative">
+                      <div className="text-xs font-bold text-gray-400 uppercase mb-2">Deuda Proveedor (Costo Global)</div>
                       <div className="text-3xl font-black">Q{currentProviderDebt.toFixed(2)}</div>
-                      <button onClick={() => setProviderModalOpen(true)} className="absolute right-4 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm">Abonar</button>
+                      <button onClick={() => setProviderModalOpen(true)} className="absolute right-4 top-1/2 -translate-y-1/2 bg-amber-500 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm">Abonar</button>
                     </div>
                     <div className="bg-emerald-50 p-6 rounded-2xl shadow-sm border border-emerald-100">
                       <div className="text-xs font-bold text-emerald-600 uppercase mb-2">Ganancia Neta Calc.</div>
                       <div className="text-3xl font-black text-emerald-700">Q{totalNetProfit.toFixed(2)}</div>
                     </div>
                   </div>
+                  
+                  {/* ADMIN: CONTROL DE DEUDAS DE VENDEDORES */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black">Control: ¿Cuánto debe cada vendedor?</h2></div>
+                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black">Control: ¿Cuánto te debe cada vendedor?</h2></div>
                     <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                       {sellerDebts.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-4 bg-white border border-gray-100 rounded-xl shadow-sm">
-                          <div className="font-bold text-gray-900">{s.nombre}</div>
+                        <div key={s.id} className="flex justify-between items-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+                          <div>
+                            <div className="font-bold text-gray-900 mb-1">{s.nombre}</div>
+                            <button onClick={() => { setSellerToPay(s); setAdminAbonoModalOpen(true); }} className="text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold">Registrar Pago</button>
+                          </div>
                           <div className="text-right">
                             <div className="text-xs text-gray-400 font-bold uppercase">Deuda Pendiente</div>
-                            <div className={`font-black text-lg ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
+                            <div className={`font-black text-xl ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
                           </div>
                         </div>
                       ))}
+                      {sellerDebts.length === 0 && <p className="text-sm text-gray-500">No hay vendedores para mostrar.</p>}
                     </div>
                   </div>
                 </>
               ) : (
-                // PANEL FINANZAS VENDEDOR
+                // PANEL FINANZAS VENDEDOR (SOLO LECTURA)
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                      <div className="text-xs font-bold text-gray-400 uppercase mb-2">Mis Ventas Totales</div>
-                      <div className="text-3xl font-black text-gray-900">Q{myTotalSales.toFixed(2)}</div>
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div className="p-6 border-b border-gray-50 bg-gray-50/50">
+                      <h2 className="text-xl font-black text-gray-900">Resumen de mi Gestión</h2>
+                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tus ingresos y deudas directamente sincronizadas con el Administrador.</p>
                     </div>
-                    <div className="bg-emerald-50 p-6 rounded-2xl shadow-sm border border-emerald-100">
-                      <div className="text-xs font-bold text-emerald-600 uppercase mb-2">Mi Ganancia Neta</div>
-                      <div className="text-3xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 p-6 gap-6">
+                      <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                        <div className="text-xs font-bold text-emerald-600 uppercase mb-2">Mi Ganancia Neta Generada</div>
+                        <div className="text-4xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-red-50 p-6 rounded-2xl border border-red-200">
+                        <div className="text-xs font-bold text-red-600 uppercase mb-2">Deuda Pendiente al Administrador</div>
+                        <div className="text-4xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
+                        <p className="text-xs text-red-500 font-bold mt-2"><IconInfo/> Esta cantidad es calculada en base al costo de los artículos vendidos.</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-red-50 p-6 rounded-2xl shadow-sm border border-red-200 flex justify-between items-center">
-                    <div>
-                      <div className="text-xs font-bold text-red-600 uppercase mb-2">Deuda Pendiente al Admin (Costo Mercancía)</div>
-                      <div className="text-4xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
-                    </div>
-                    <button onClick={() => setAdminAbonoModalOpen(true)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl shadow-md">
-                      Abonar al Admin
-                    </button>
                   </div>
                 </>
               )}
@@ -710,23 +791,75 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DETALLES ORDEN */}
+      {/* MODAL DETALLES ORDEN COMPLETO */}
       {selectedOrderDetails && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b flex justify-between"><h3 className="font-black">Orden: {selectedOrderDetails.orderNumber}</h3><button onClick={() => setSelectedOrderDetails(null)}><IconClose/></button></div>
+            <div className="p-5 border-b flex justify-between"><h3 className="font-black">Orden: <span className="text-amber-600">{selectedOrderDetails.orderNumber}</span></h3><button onClick={() => setSelectedOrderDetails(null)}><IconClose/></button></div>
             <div className="p-6 overflow-y-auto space-y-4 text-sm">
-              <div className="bg-gray-50 p-4 rounded-xl"><b>Cliente:</b> {selectedOrderDetails.customerName} | <b>Vendió:</b> {selectedOrderDetails.sellerName}</div>
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Cliente</span> <div className="font-black text-gray-800">{selectedOrderDetails.customerName}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Teléfono</span> <div className="font-bold text-gray-600">{selectedOrderDetails.customerPhone || 'N/A'}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Vendedor</span> <div className="font-bold text-gray-600">{selectedOrderDetails.sellerName}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Estado</span> <div className={selectedOrderDetails.status==='Pagada'?'text-emerald-600 font-black':'text-red-600 font-black'}>{selectedOrderDetails.status}</div></div>
+              </div>
               <div>
-                <h4 className="font-black mb-2">Artículos</h4>
+                <h4 className="font-black mb-2 border-b pb-2">Artículos Vendidos</h4>
                 {selectedOrderDetails.items.map((it, idx) => (
-                  <div key={idx} className="border p-3 rounded-xl mb-2">
-                    <div className="flex justify-between font-black"><span>{it.quantity}x {it.description}</span><span>Q{it.saleTotal.toFixed(2)}</span></div>
-                    {posProfile.role === 'admin' && <div className="flex justify-between text-[10px] text-gray-500 font-bold mt-1"><span>Costo: Q{it.baseCostTotal.toFixed(2)}</span><span className="text-emerald-500">Ganancia: Q{it.profit.toFixed(2)}</span></div>}
+                  <div key={idx} className="border p-3 rounded-xl mb-2 bg-white shadow-sm">
+                    <div className="flex justify-between font-black mb-1"><span>{it.quantity}x {it.description}</span><span>Q{it.saleTotal.toFixed(2)}</span></div>
+                    <div className="flex flex-col gap-1 text-[11px]">
+                       <div className="flex justify-between text-gray-500 font-bold"><span>Precio Venta Un: Q{it.salePrice.toFixed(2)}</span></div>
+                       <div className="flex justify-between font-bold">
+                         <span className="text-gray-500">Costo Base: Q{it.baseCostTotal.toFixed(2)}</span>
+                         <span className="text-emerald-500">Ganancia: Q{it.profit.toFixed(2)}</span>
+                       </div>
+                       {it.difference !== undefined && it.difference !== 0 && (
+                          <div className={`mt-1 py-1 px-2 rounded font-bold text-center ${it.difference > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                             {it.priceMessage}
+                          </div>
+                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="font-black mb-2 border-b pb-2">Historial de Pagos</h4>
+                {selectedOrderDetails.payments?.map(p => (
+                  <div key={p.id} className="flex justify-between text-xs py-1 border-b border-dashed text-gray-600">
+                    <span>{p.date.split(',')[0]} - {p.type} ({p.method})</span>
+                    <span className="font-bold text-gray-900">Q{p.amount.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR ORDEN */}
+      {editingOrder && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="font-black mb-4">Editar Orden: {editingOrder.orderNumber}</h3>
+            <form onSubmit={handleEditOrderSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre Cliente</label>
+                <input type="text" value={editCustomerName} onChange={e=>setEditCustomerName(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Teléfono</label>
+                <input type="text" value={editCustomerPhone} onChange={e=>setEditCustomerPhone(e.target.value)} className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Pagado (Acumulado)</label>
+                <input type="number" step="0.01" max={editingOrder.saleTotal} value={editPaidAmount} onChange={e=>setEditPaidAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-black text-amber-600" />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setEditingOrder(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button>
+                <button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -739,27 +872,35 @@ export default function App() {
             <form onSubmit={processAbonoCliente} className="space-y-4">
               <div className="flex justify-between mb-4"><b>Saldo Pendiente:</b><b className="text-red-500">Q{abonoOrder.balance.toFixed(2)}</b></div>
               <input type="number" step="0.01" max={abonoOrder.balance} value={abonoAmount} onChange={e=>setAbonoAmount(e.target.value)} required placeholder="Monto a abonar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              <select value={abonoMethod} onChange={e=>setAbonoMethod(e.target.value)} className="w-full px-3 py-2.5 bg-white border rounded-xl font-bold">
+                 <option>Efectivo</option>
+                 <option>Transferencia</option>
+              </select>
               <button type="submit" className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl">Guardar Abono</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL ABONO ADMIN (DESDE EL VENDEDOR) */}
-      {adminAbonoModalOpen && (
+      {/* MODAL ABONO ADMIN (DESDE EL PANEL DE FINANZAS DE ADMIN) */}
+      {adminAbonoModalOpen && sellerToPay && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Abonar al Administrador</h3>
+            <h3 className="font-black mb-1">Registrar Pago de Vendedor</h3>
+            <p className="text-sm text-gray-500 mb-4 font-bold">{sellerToPay.nombre}</p>
             <form onSubmit={processAbonoAdmin} className="space-y-4">
-              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{myDebtToAdmin.toFixed(2)}</b></div>
-              <input type="number" step="0.01" max={myDebtToAdmin} value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado al Admin" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <button type="submit" className="w-full py-3 bg-red-600 text-white font-bold rounded-xl">Registrar Entrega</button>
+              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{sellerToPay.currentDebt.toFixed(2)}</b></div>
+              <input type="number" step="0.01" max={sellerToPay.currentDebt} value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null);}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button>
+                <button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL ABONO PROVEEDOR (DESDE EL ADMIN) */}
+      {/* MODAL ABONO PROVEEDOR (ADMIN) */}
       {providerModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
