@@ -161,6 +161,7 @@ export default function App() {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   const [selectedAssignmentDetails, setSelectedAssignmentDetails] = useState(null);
+  const [virtualReceipt, setVirtualReceipt] = useState(null);
   
   const [abonoModalOpen, setAbonoModalOpen] = useState(false);
   const [abonoOrder, setAbonoOrder] = useState(null);
@@ -406,73 +407,9 @@ export default function App() {
     });
   };
 
-  // --- IMPRIMIR / PDF ---
+  // --- RECIBO VIRTUAL (SCREENSHOT) ---
   const handlePrint = (data, type) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    
-    let html = `
-      <html>
-      <head>
-        <title>Recibo ${data.orderNumber || data.assignmentNumber || ''}</title>
-        <style>
-          body { font-family: sans-serif; padding: 20px; color: #111; line-height: 1.5; }
-          h1 { margin-bottom: 5px; font-size: 24px; }
-          .header-info { margin-bottom: 20px; font-size: 14px; }
-          .table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-          .table th, .table td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
-          .table th { background-color: #f4f4f5; }
-          .right { text-align: right; }
-          .total-box { margin-top: 20px; padding-top: 10px; border-top: 2px solid #111; text-align: right; font-size: 16px; font-weight: bold; }
-          .footer { margin-top: 40px; font-size: 12px; color: #666; text-align: center; }
-        </style>
-      </head>
-      <body>
-        <h1>JoyaPanel</h1>
-    `;
-
-    if (type === 'sale') {
-      html += `
-        <div class="header-info">
-          <p><b>Recibo de Venta:</b> ${data.orderNumber}</p>
-          <p><b>Cliente:</b> ${data.customerName}<br>
-          <b>Teléfono:</b> ${data.customerPhone || 'N/A'}<br>
-          <b>Atendido por:</b> ${data.sellerName}<br>
-          <b>Fecha:</b> ${data.date}</p>
-        </div>
-        <table class="table">
-          <thead><tr><th>Descripción</th><th>Costo Un.</th><th>Venta Un.</th><th class="right">Total Venta</th></tr></thead>
-          <tbody>
-            ${(data.items || []).map(i => `<tr><td>${i.quantity}x ${i.description} (${i.weight}g)</td><td>Q${(i.baseCostTotal / (i.quantity||1)).toFixed(2)}</td><td>Q${(i.salePrice||0).toFixed(2)}</td><td class="right">Q${(i.saleTotal||0).toFixed(2)}</td></tr>`).join('')}
-          </tbody>
-        </table>
-        <div class="total-box">Total a Pagar: Q${(data.saleTotal||0).toFixed(2)}</div>
-        <div style="text-align: right; font-size: 14px; margin-top: 5px;">Monto Pagado: Q${(data.paidAmount||0).toFixed(2)} | Saldo Restante: Q${(data.balance||0).toFixed(2)}</div>
-        <div class="footer">¡Gracias por su compra!</div>
-      `;
-    } else if (type === 'assignment') {
-      html += `
-        <div class="header-info">
-          <p><b>Comprobante de Asignación de Inventario:</b> ${data.assignmentNumber}</p>
-          <p><b>Vendedor Receptor:</b> ${data.sellerName}<br>
-          <b>Fecha:</b> ${data.date}</p>
-        </div>
-        <table class="table">
-          <thead><tr><th>Descripción</th><th>Peso</th><th>Costo Un.</th><th class="right">Costo Total Base</th></tr></thead>
-          <tbody>
-            ${(data.items || []).map(i => `<tr><td>${i.quantity}x ${i.description}</td><td>${i.weight}g</td><td>Q${(i.baseCostTotal / (i.quantity||1)).toFixed(2)}</td><td class="right">Q${(i.baseCostTotal||0).toFixed(2)}</td></tr>`).join('')}
-          </tbody>
-        </table>
-        <div class="total-box">Deuda Adquirida (Costo Base): Q${(data.baseCostTotal||0).toFixed(2)}</div>
-        <div class="footer">Documento interno de asignación de mercadería.</div>
-      `;
-    }
-
-    html += `</body></html>`;
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+    setVirtualReceipt({ data, type });
   };
 
   // --- 7. LÓGICA VENTAS ---
@@ -606,6 +543,8 @@ export default function App() {
   const myBaseCostSold = mySales.reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
   const myTotalPaidToAdmin = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
   const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaidToAdmin) : 0;
+  
+  const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
 
   // --- RENDERIZADOS ---
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white"><IconDiamond /> Cargando...</div>;
@@ -1136,6 +1075,25 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+                  {/* VENDEDOR: HISTORIAL DE ABONOS */}
+                  <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden mb-6">
+                    <div className="p-6 border-b border-gray-50 bg-gray-50/50">
+                      <h2 className="text-xl font-black text-gray-900">Mis Abonos Entregados</h2>
+                    </div>
+                    <div className="p-5 space-y-3">
+                      {myPaymentsHistory.filter(p => !p.isAdjustment).map(p => (
+                        <div key={p.id} className="flex justify-between items-center p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                          <div>
+                            <div className="font-black text-gray-800">Abono registrado</div>
+                            <div className="text-xs text-gray-500 font-bold">{p.date ? p.date.split(',')[0] : 'Sin fecha'}</div>
+                          </div>
+                          <div className="font-black text-emerald-600 text-lg">Q{(p.amount || 0).toFixed(2)}</div>
+                        </div>
+                      ))}
+                      {myPaymentsHistory.filter(p => !p.isAdjustment).length === 0 && <p className="text-sm text-gray-500 font-bold">No has registrado abonos todavía.</p>}
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -1250,7 +1208,7 @@ export default function App() {
             <div className="p-5 border-b flex justify-between items-center">
               <h3 className="font-black">Orden: <span className="text-amber-600">{selectedOrderDetails.orderNumber || 'Sin número'}</span></h3>
               <div className="flex items-center gap-2">
-                 <button onClick={() => handlePrint(selectedOrderDetails, 'sale')} className="text-gray-500 hover:text-gray-900 bg-gray-100 p-2 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"><IconPrint /> Imprimir</button>
+                 <button onClick={() => handlePrint(selectedOrderDetails, 'sale')} className="text-gray-500 hover:text-gray-900 bg-gray-100 p-2 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"><IconPrint /> Recibo</button>
                  <button onClick={() => setSelectedOrderDetails(null)} className="p-2"><IconClose/></button>
               </div>
             </div>
@@ -1298,7 +1256,7 @@ export default function App() {
             <div className="p-5 border-b flex justify-between items-center bg-blue-50 rounded-t-3xl">
                <h3 className="font-black text-blue-900">Asignación: <span className="text-blue-600">{selectedAssignmentDetails.assignmentNumber || 'Sin número'}</span></h3>
                <div className="flex items-center gap-2">
-                 <button onClick={() => handlePrint(selectedAssignmentDetails, 'assignment')} className="text-blue-700 hover:text-blue-900 bg-blue-100/50 hover:bg-blue-200 p-2 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"><IconPrint /> Imprimir</button>
+                 <button onClick={() => handlePrint(selectedAssignmentDetails, 'assignment')} className="text-blue-700 hover:text-blue-900 bg-blue-100/50 hover:bg-blue-200 p-2 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"><IconPrint /> Recibo</button>
                  <button onClick={() => setSelectedAssignmentDetails(null)} className="text-blue-600 p-2"><IconClose/></button>
                </div>
             </div>
@@ -1331,6 +1289,88 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recibo Virtual (Para Screenshot) */}
+      {virtualReceipt && (
+        <div className="fixed inset-0 bg-gray-900/90 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-[320px] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 overflow-y-auto bg-[#fdfdfd]">
+              <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-4">
+                <div className="flex justify-center text-gray-900 mb-2"><IconDiamond /></div>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight uppercase">JoyaPanel</h2>
+                <p className="text-[10px] text-gray-500 font-bold mt-1 tracking-widest">{virtualReceipt.type === 'sale' ? 'RECIBO DE VENTA' : 'ASIGNACIÓN DE INV.'}</p>
+              </div>
+
+              {virtualReceipt.type === 'sale' ? (
+                <>
+                  <div className="mb-4 text-xs text-gray-600 space-y-1">
+                    <div className="flex justify-between"><span>Orden:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.orderNumber}</span></div>
+                    <div className="flex justify-between"><span>Fecha:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.date?.split(',')[0]}</span></div>
+                    <div className="flex justify-between"><span>Cliente:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.customerName}</span></div>
+                    <div className="flex justify-between"><span>Atendió:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.sellerName}</span></div>
+                  </div>
+
+                  <div className="border-t-2 border-b-2 border-dashed border-gray-300 py-3 mb-4 space-y-2">
+                    {(virtualReceipt.data.items || []).map((it, idx) => (
+                      <div key={idx} className="flex justify-between text-xs">
+                        <span className="text-gray-800 pr-2">{it.quantity}x {it.description}</span>
+                        <span className="font-bold text-gray-900 whitespace-nowrap">Q{(it.saleTotal || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1 mb-6 text-sm">
+                    <div className="flex justify-between font-black text-gray-900 text-lg mb-2">
+                      <span>TOTAL:</span>
+                      <span>Q{(virtualReceipt.data.saleTotal || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600 text-xs">
+                      <span>Pagado:</span>
+                      <span className="font-bold">Q{(virtualReceipt.data.paidAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600 text-xs">
+                      <span>Saldo Restante:</span>
+                      <span className="font-bold">Q{(virtualReceipt.data.balance || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-4 text-xs text-gray-600 space-y-1">
+                    <div className="flex justify-between"><span>Asignación:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.assignmentNumber}</span></div>
+                    <div className="flex justify-between"><span>Fecha:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.date?.split(',')[0]}</span></div>
+                    <div className="flex justify-between"><span>Vendedor:</span> <span className="font-bold text-gray-900">{virtualReceipt.data.sellerName}</span></div>
+                  </div>
+
+                  <div className="border-t-2 border-b-2 border-dashed border-gray-300 py-3 mb-4 space-y-2">
+                    {(virtualReceipt.data.items || []).map((it, idx) => (
+                      <div key={idx} className="flex justify-between text-xs">
+                        <span className="text-gray-800 pr-2">{it.quantity}x {it.description} ({it.weight}g)</span>
+                        <span className="font-bold text-gray-900 whitespace-nowrap">Q{(it.baseCostTotal || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1 mb-6 text-sm">
+                    <div className="flex justify-between font-black text-gray-900 text-lg">
+                      <span>DEUDA BASE:</span>
+                      <span>Q{(virtualReceipt.data.baseCostTotal || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="text-center text-[10px] text-gray-400 mt-4 font-bold uppercase">
+                {virtualReceipt.type === 'sale' ? '¡Gracias por su compra!' : 'Documento de Inventario'}
+              </div>
+            </div>
+            
+            <div className="p-3 bg-gray-100 border-t border-gray-200">
+               <button onClick={() => setVirtualReceipt(null)} className="w-full py-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 font-bold rounded-xl shadow-sm transition-colors text-sm">Cerrar Recibo</button>
             </div>
           </div>
         </div>
