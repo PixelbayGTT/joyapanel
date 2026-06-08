@@ -222,8 +222,6 @@ export default function App() {
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // CORRECCIÓN: Ya no borramos el perfil si 'user' es temporalmente null durante la carga.
-      // Esto previene que se borren los datos al recargar la página.
       setFirebaseUser(user);
       setLoading(false);
     });
@@ -233,13 +231,16 @@ export default function App() {
 
   // --- 2. CARGA DE DATOS DESDE FIRESTORE ---
   useEffect(() => {
-    // Solo cargar datos si tenemos un perfil y un usuario de Firebase validado
     if (!posProfile || !firebaseUser) return;
     
     const adminRefUid = posProfile.adminUid;
-    const errorHandler = (err) => console.error("Firestore Snapshot Error:", err);
+    const errorHandler = (err) => {
+      console.error("Firestore Snapshot Error:", err);
+      if (err.code === 'permission-denied') {
+        alert("Error de permisos en la base de datos. Revisa las reglas de Firestore.");
+      }
+    };
 
-    // Filtramos en memoria para asegurar que un Vendedor acceda solo al negocio de su Admin
     const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
 
     const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
@@ -266,15 +267,22 @@ export default function App() {
       localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
       setActiveTab('inventory');
     } catch (error) {
-      setAuthError("Error: Verifica tus credenciales.");
+      console.error("Auth error:", error);
+      if (error.code === 'auth/email-already-in-use') {
+         setAuthError("El correo ya está registrado.");
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+         setAuthError("Credenciales incorrectas.");
+      } else if (error.code === 'auth/operation-not-allowed') {
+         setAuthError("El inicio por correo no está habilitado en tu consola de Firebase.");
+      } else {
+         setAuthError("Error al iniciar sesión. Revisa la consola.");
+      }
     }
   };
 
   const handleSellerLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
-      // CORRECCIÓN: Si el entorno ya nos autenticó (Canvas user/Anónimo), evitamos intentar un nuevo login
-      // que causaba conflicto de permisos y el consecuente "Error de conexión".
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
@@ -289,17 +297,19 @@ export default function App() {
         localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
         setActiveTab('sales');
       } else {
-        setAuthError("El código de vendedor no existe.");
+        setAuthError("El PIN ingresado no es válido o no existe.");
       }
     } catch (error) {
-      setAuthError("Error de conexión.");
-      console.error(error);
+      console.error("Seller Login Error:", error);
+      if (error.code === 'permission-denied') {
+        setAuthError("Acceso denegado a la base de datos.");
+      } else {
+        setAuthError("Error de conexión. Intenta de nuevo.");
+      }
     }
   };
 
   const handleLogout = () => {
-    // CORRECCIÓN: No cerramos la sesión de Firebase internamente para no romper la lectura de Canvas. 
-    // Solo borramos el perfil local de la aplicación, lo que nos devuelve a la pantalla de login con total seguridad.
     setPosProfile(null);
     localStorage.removeItem('joyapanel_profile');
     setLoginMode('select');
