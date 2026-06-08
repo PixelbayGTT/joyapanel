@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -77,7 +77,7 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
       saleTotal: currentPrice * sellQuantity,
       profit: (currentPrice * sellQuantity) - ((item.weight * 40) * sellQuantity),
       priceMessage,
-      difference // Guardamos la diferencia para mostrar en el historial
+      difference
     });
     setSellQuantity(1);
     setCurrentPrice(suggestedPrice);
@@ -125,6 +125,7 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState(null);
   
   // Perfil del Usuario Actual { role: 'admin'|'seller', adminUid, sellerId?, nombre }
   const [posProfile, setPosProfile] = useState(null);
@@ -145,7 +146,7 @@ export default function App() {
   const [salesHistory, setSalesHistory] = useState([]);
   const [sellers, setSellers] = useState([]);
   const [providerPayments, setProviderPayments] = useState([]);
-  const [sellerToAdminPayments, setSellerToAdminPayments] = useState([]); // Pagos del vendedor al admin
+  const [sellerToAdminPayments, setSellerToAdminPayments] = useState([]);
 
   // Estados Formularios
   const [newDesc, setNewDesc] = useState('');
@@ -167,6 +168,9 @@ export default function App() {
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [initialPayment, setInitialPayment] = useState('');
 
+  // Modal de Confirmación Global
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
   // Estados Modales Acciones
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   
@@ -187,16 +191,38 @@ export default function App() {
 
   const [adminAbonoModalOpen, setAdminAbonoModalOpen] = useState(false);
   const [adminAbonoAmount, setAdminAbonoAmount] = useState('');
-  const [sellerToPay, setSellerToPay] = useState(null); // Qué vendedor está abonando al admin
+  const [sellerToPay, setSellerToPay] = useState(null);
+
+  // Funciones Utilitarias Base de Datos
+  const getColRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+  const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
+
+  const confirmAction = (message, action) => {
+    setConfirmDialog({ message, onConfirm: action });
+  };
 
   // --- 1. MANEJO DE SESIÓN Y PERSISTENCIA ---
   useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth init error:", err);
+      }
+    };
+    initAuth();
+
     const savedProfile = localStorage.getItem('joyapanel_profile');
     if (savedProfile) {
       setPosProfile(JSON.parse(savedProfile));
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
       if (!user) {
         setPosProfile(null);
         localStorage.removeItem('joyapanel_profile');
@@ -209,22 +235,23 @@ export default function App() {
 
   // --- 2. CARGA DE DATOS DESDE FIRESTORE ---
   useEffect(() => {
-    if (!posProfile) return;
+    // Solo cargar datos si tenemos un perfil y un usuario de Firebase validado
+    if (!posProfile || !firebaseUser) return;
     
     const adminRefUid = posProfile.adminUid;
-    const getPath = (col) => collection(db, 'artifacts', appId, 'users', adminRefUid, col);
+    const errorHandler = (err) => console.error("Firestore Snapshot Error:", err);
 
-    const unsubInv = onSnapshot(getPath('inventory'), (snap) => setInventory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubSales = onSnapshot(getPath('sales'), (snap) => setSalesHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp)));
-    const unsubSell = onSnapshot(getPath('vendedores'), (snap) => setSellers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubProv = onSnapshot(getPath('providerPayments'), (snap) => setProviderPayments(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubSellerPays = onSnapshot(getPath('sellerPayments'), (snap) => setSellerToAdminPayments(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // Filtramos en memoria para asegurar que un Vendedor acceda solo al negocio de su Admin
+    const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
+
+    const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
+    const unsubSales = onSnapshot(getColRef('sales'), (snap) => setSalesHistory(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
+    const unsubSell = onSnapshot(getColRef('vendedores'), (snap) => setSellers(filterByAdmin(snap)), errorHandler);
+    const unsubProv = onSnapshot(getColRef('providerPayments'), (snap) => setProviderPayments(filterByAdmin(snap)), errorHandler);
+    const unsubSellerPays = onSnapshot(getColRef('sellerPayments'), (snap) => setSellerToAdminPayments(filterByAdmin(snap)), errorHandler);
 
     return () => { unsubInv(); unsubSales(); unsubSell(); unsubProv(); unsubSellerPays(); };
-  }, [posProfile]);
-
-  const getColRef = (colName) => collection(db, 'artifacts', appId, 'users', posProfile.adminUid, colName);
-  const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'users', posProfile.adminUid, colName, docId);
+  }, [posProfile, firebaseUser]);
 
   // --- 3. LÓGICA DE LOGIN ---
   const handleAdminLogin = async (e) => {
@@ -249,7 +276,7 @@ export default function App() {
     e.preventDefault(); setAuthError('');
     try {
       await signInAnonymously(auth);
-      const globalPinRef = doc(db, 'artifacts', appId, 'globalSellers', sellerPinInput);
+      const globalPinRef = doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput);
       const pinSnap = await getDoc(globalPinRef);
 
       if (pinSnap.exists()) {
@@ -263,6 +290,7 @@ export default function App() {
       }
     } catch (error) {
       setAuthError("Error de conexión.");
+      console.error(error);
     }
   };
 
@@ -278,53 +306,68 @@ export default function App() {
   // ADMIN: VENDEDORES
   const handleAddSeller = async (e) => {
     e.preventDefault();
-    const sellerDoc = await addDoc(getColRef('vendedores'), {
-      nombre: newSellerName,
-      pin: newSellerCode,
-      createdAt: Date.now()
-    });
-    await setDoc(doc(db, 'artifacts', appId, 'globalSellers', newSellerCode), {
-      adminUid: posProfile.adminUid,
-      sellerId: sellerDoc.id,
-      nombre: newSellerName
-    });
-    setNewSellerName(''); setNewSellerCode('');
+    try {
+      const sellerDoc = await addDoc(getColRef('vendedores'), {
+        adminUid: posProfile.adminUid,
+        nombre: newSellerName,
+        pin: newSellerCode,
+        createdAt: Date.now()
+      });
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', newSellerCode), {
+        adminUid: posProfile.adminUid,
+        sellerId: sellerDoc.id,
+        nombre: newSellerName
+      });
+      setNewSellerName(''); setNewSellerCode('');
+    } catch (error) {
+      console.error("Error al crear vendedor:", error);
+    }
   };
 
-  const deleteSeller = async (id, pin) => {
-    if(!window.confirm("¿Seguro que deseas eliminar este vendedor?")) return;
-    await deleteDoc(getDocRef('vendedores', id));
-    await deleteDoc(doc(db, 'artifacts', appId, 'globalSellers', pin));
+  const deleteSeller = (id, pin) => {
+    confirmAction("¿Seguro que deseas eliminar este vendedor?", async () => {
+      try {
+        await deleteDoc(getDocRef('vendedores', id));
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', pin));
+      } catch(err) { console.error(err); }
+    });
   };
 
   // ADMIN: INVENTARIO
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (!newDesc || !newWeight || !newQty) return;
-    await addDoc(getColRef('inventory'), {
-      description: newDesc, weight: Number(newWeight), quantity: Number(newQty), image: newImage.trim(),
-      cost: Number(newWeight) * 40, assignedTo: assignTo, timestamp: Date.now()
-    });
-    setNewDesc(''); setNewWeight(''); setNewQty(''); setNewImage(''); setAssignTo('general');
+    try {
+      await addDoc(getColRef('inventory'), {
+        adminUid: posProfile.adminUid,
+        description: newDesc, weight: Number(newWeight), quantity: Number(newQty), image: newImage.trim(),
+        cost: Number(newWeight) * 40, assignedTo: assignTo, timestamp: Date.now()
+      });
+      setNewDesc(''); setNewWeight(''); setNewQty(''); setNewImage(''); setAssignTo('general');
+    } catch(err) { console.error(err); }
   };
 
   const handleEditSave = async (e) => {
     e.preventDefault();
-    await updateDoc(getDocRef('inventory', editingItem.id), {
-      description: editingItem.description,
-      weight: Number(editingItem.weight),
-      quantity: Number(editingItem.quantity),
-      image: editingItem.image,
-      cost: Number(editingItem.weight) * 40,
-      assignedTo: editingItem.assignedTo || 'general'
-    });
-    setEditingItem(null);
+    try {
+      await updateDoc(getDocRef('inventory', editingItem.id), {
+        description: editingItem.description,
+        weight: Number(editingItem.weight),
+        quantity: Number(editingItem.quantity),
+        image: editingItem.image,
+        cost: Number(editingItem.weight) * 40,
+        assignedTo: editingItem.assignedTo || 'general'
+      });
+      setEditingItem(null);
+    } catch(err) { console.error(err); }
   };
 
-  const deleteItem = async (id) => {
-    if(window.confirm("¿Eliminar esta joya del inventario?")) {
-      await deleteDoc(getDocRef('inventory', id));
-    }
+  const deleteItem = (id) => {
+    confirmAction("¿Eliminar esta joya del inventario?", async () => {
+      try {
+        await deleteDoc(getDocRef('inventory', id));
+      } catch(err) { console.error(err); }
+    });
   };
 
   // VENTAS Y CARRITO
@@ -344,6 +387,7 @@ export default function App() {
     const balance = cartTotal - paymentAmount;
     
     const newOrder = {
+      adminUid: posProfile.adminUid,
       orderNumber: `JOY-${Math.floor(10000 + Math.random() * 90000)}`,
       customerName, customerPhone, items: cart, saleTotal: cartTotal, baseCostTotal,
       profit: cartTotal - baseCostTotal, paidAmount: paymentAmount, balance,
@@ -354,32 +398,34 @@ export default function App() {
       payments: paymentAmount > 0 ? [{ id: Date.now(), date: new Date().toLocaleString(), amount: paymentAmount, method: paymentMethod, type: 'Inicial' }] : []
     };
 
-    await addDoc(getColRef('sales'), newOrder);
+    try {
+      await addDoc(getColRef('sales'), newOrder);
 
-    for (const cItem of cart) {
-      const invItem = inventory.find(i => i.id === cItem.inventoryId);
-      if (invItem) await updateDoc(getDocRef('inventory', invItem.id), { quantity: invItem.quantity - cItem.quantity });
-    }
-    setCart([]); setCheckoutModalOpen(false); setIsCartOpen(false);
-    setCustomerName(''); setCustomerPhone(''); setInitialPayment('');
-    setActiveTab('history');
+      for (const cItem of cart) {
+        const invItem = inventory.find(i => i.id === cItem.inventoryId);
+        if (invItem) await updateDoc(getDocRef('inventory', invItem.id), { quantity: invItem.quantity - cItem.quantity });
+      }
+      setCart([]); setCheckoutModalOpen(false); setIsCartOpen(false);
+      setCustomerName(''); setCustomerPhone(''); setInitialPayment('');
+      setActiveTab('history');
+    } catch (err) { console.error(err); }
   };
 
   // HISTORIAL: EDITAR / ELIMINAR ORDEN
-  const handleDeleteOrder = async (order) => {
-    if(!window.confirm("¿Seguro que deseas eliminar esta orden? El inventario será restaurado.")) return;
-    
-    // Restaurar inventario
-    for (const item of order.items) {
-      const invDocRef = getDocRef('inventory', item.inventoryId);
-      const invSnap = await getDoc(invDocRef);
-      if(invSnap.exists()) {
-        await updateDoc(invDocRef, { quantity: invSnap.data().quantity + item.quantity });
-      }
-    }
-    // Eliminar orden
-    await deleteDoc(getDocRef('sales', order.id));
-    setSelectedOrderDetails(null);
+  const handleDeleteOrder = (order) => {
+    confirmAction("¿Seguro que deseas eliminar esta orden? El inventario será restaurado.", async () => {
+      try {
+        for (const item of order.items) {
+          const invDocRef = getDocRef('inventory', item.inventoryId);
+          const invSnap = await getDoc(invDocRef);
+          if(invSnap.exists()) {
+            await updateDoc(invDocRef, { quantity: invSnap.data().quantity + item.quantity });
+          }
+        }
+        await deleteDoc(getDocRef('sales', order.id));
+        setSelectedOrderDetails(null);
+      } catch(err) { console.error(err); }
+    });
   };
 
   const handleEditOrderSubmit = async (e) => {
@@ -389,14 +435,16 @@ export default function App() {
 
     const newBalance = editingOrder.saleTotal - newPaidAmount;
     
-    await updateDoc(getDocRef('sales', editingOrder.id), {
-      customerName: editCustomerName,
-      customerPhone: editCustomerPhone,
-      paidAmount: newPaidAmount,
-      balance: newBalance,
-      status: newBalance <= 0 ? 'Pagada' : 'Pendiente'
-    });
-    setEditingOrder(null);
+    try {
+      await updateDoc(getDocRef('sales', editingOrder.id), {
+        customerName: editCustomerName,
+        customerPhone: editCustomerPhone,
+        paidAmount: newPaidAmount,
+        balance: newBalance,
+        status: newBalance <= 0 ? 'Pagada' : 'Pendiente'
+      });
+      setEditingOrder(null);
+    } catch(err) { console.error(err); }
   };
 
   const processAbonoCliente = async (e) => {
@@ -405,28 +453,34 @@ export default function App() {
     if (amount <= 0 || amount > abonoOrder.balance) return;
     const newPaidAmount = abonoOrder.paidAmount + amount;
     const newBalance = abonoOrder.saleTotal - newPaidAmount;
-    await updateDoc(getDocRef('sales', abonoOrder.id), {
-      paidAmount: newPaidAmount, balance: newBalance,
-      status: newBalance <= 0 ? 'Pagada' : 'Pendiente',
-      payments: [...(abonoOrder.payments||[]), { id: Date.now(), date: new Date().toLocaleString(), amount, method: abonoMethod, type: 'Abono' }]
-    });
-    setAbonoModalOpen(false); setAbonoAmount(''); setAbonoOrder(null);
+    
+    try {
+      await updateDoc(getDocRef('sales', abonoOrder.id), {
+        paidAmount: newPaidAmount, balance: newBalance,
+        status: newBalance <= 0 ? 'Pagada' : 'Pendiente',
+        payments: [...(abonoOrder.payments||[]), { id: Date.now(), date: new Date().toLocaleString(), amount, method: abonoMethod, type: 'Abono' }]
+      });
+      setAbonoModalOpen(false); setAbonoAmount(''); setAbonoOrder(null);
+    } catch(err) { console.error(err); }
   };
 
   // FINANZAS PAGOS
   const processAbonoProveedor = async (e) => {
     e.preventDefault();
-    await addDoc(getColRef('providerPayments'), { amount: Number(providerPaymentAmount), date: new Date().toLocaleString(), timestamp: Date.now() });
-    setProviderModalOpen(false); setProviderPaymentAmount('');
+    try {
+      await addDoc(getColRef('providerPayments'), { adminUid: posProfile.adminUid, amount: Number(providerPaymentAmount), date: new Date().toLocaleString(), timestamp: Date.now() });
+      setProviderModalOpen(false); setProviderPaymentAmount('');
+    } catch(err) { console.error(err); }
   };
 
   const processAbonoAdmin = async (e) => {
     e.preventDefault();
-    // Admin registra que el vendedor le pagó la deuda
-    await addDoc(getColRef('sellerPayments'), {
-      sellerId: sellerToPay.id, amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
-    });
-    setAdminAbonoModalOpen(false); setAdminAbonoAmount(''); setSellerToPay(null);
+    try {
+      await addDoc(getColRef('sellerPayments'), {
+        adminUid: posProfile.adminUid, sellerId: sellerToPay.id, amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
+      });
+      setAdminAbonoModalOpen(false); setAdminAbonoAmount(''); setSellerToPay(null);
+    } catch(err) { console.error(err); }
   };
 
   // --- 5. CÁLCULOS FINANCIEROS Y FILTROS ---
@@ -566,7 +620,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Tabla de Inventario (Con acciones para Admin, Solo Lectura para Vendedor) */}
+              {/* Tabla de Inventario */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-4 border-b border-gray-50 bg-gray-50/50"><h3 className="font-bold text-gray-800">Mi Inventario Asignado</h3></div>
                 <div className="overflow-x-auto">
@@ -882,7 +936,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ABONO ADMIN (DESDE EL PANEL DE FINANZAS DE ADMIN) */}
+      {/* MODAL ABONO ADMIN */}
       {adminAbonoModalOpen && sellerToPay && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -900,7 +954,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ABONO PROVEEDOR (ADMIN) */}
+      {/* MODAL ABONO PROVEEDOR */}
       {providerModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -909,6 +963,19 @@ export default function App() {
               <input type="number" step="0.01" max={currentProviderDebt} value={providerPaymentAmount} onChange={e=>setProviderPaymentAmount(e.target.value)} required placeholder="Monto a pagar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
               <button type="submit" className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl">Registrar Pago</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMACION GLOBAL */}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <h3 className="font-black text-lg mb-6 text-gray-900">{confirmDialog.message}</h3>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setConfirmDialog(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200">Cancelar</button>
+              <button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} className="w-1/2 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md">Confirmar</button>
+            </div>
           </div>
         </div>
       )}
