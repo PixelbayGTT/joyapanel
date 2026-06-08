@@ -128,7 +128,6 @@ export default function App() {
   const [assignmentsHistory, setAssignmentsHistory] = useState([]);
   const [sellers, setSellers] = useState([]);
   const [sellerToAdminPayments, setSellerToAdminPayments] = useState([]);
-  const [providerPayments, setProviderPayments] = useState([]);
 
   // Formularios Inventario / Vendedores
   const [newDesc, setNewDesc] = useState('');
@@ -177,9 +176,6 @@ export default function App() {
   const [adminAbonoModalOpen, setAdminAbonoModalOpen] = useState(false);
   const [adminAbonoAmount, setAdminAbonoAmount] = useState('');
   const [sellerToPay, setSellerToPay] = useState(null);
-  
-  const [providerModalOpen, setProviderModalOpen] = useState(false);
-  const [providerPaymentAmount, setProviderPaymentAmount] = useState('');
 
   const [editingPayment, setEditingPayment] = useState(null);
   const [editPaymentAmount, setEditPaymentAmount] = useState('');
@@ -231,9 +227,8 @@ export default function App() {
     const unsubSell = onSnapshot(getColRef('vendedores'), (snap) => setSellers(filterByAdmin(snap)), errorHandler);
     const unsubSellerPays = onSnapshot(getColRef('sellerPayments'), (snap) => setSellerToAdminPayments(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
     const unsubAssignments = onSnapshot(getColRef('assignments'), (snap) => setAssignmentsHistory(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
-    const unsubProv = onSnapshot(getColRef('providerPayments'), (snap) => setProviderPayments(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
 
-    return () => { unsubInv(); unsubSales(); unsubSell(); unsubSellerPays(); unsubAssignments(); unsubProv(); };
+    return () => { unsubInv(); unsubSales(); unsubSell(); unsubSellerPays(); unsubAssignments(); };
   }, [posProfile, firebaseUser]);
 
   // --- 3. LOGIN / LOGOUT ---
@@ -512,19 +507,6 @@ export default function App() {
 
   const handleDeletePayment = (paymentId) => confirmAction("¿Eliminar este abono del historial?", async () => await deleteDoc(getDocRef('sellerPayments', paymentId)));
 
-  const processAbonoProveedor = async (e) => {
-    e.preventDefault();
-    try {
-      await addDoc(getColRef('providerPayments'), {
-        adminUid: posProfile.adminUid,
-        amount: Number(providerPaymentAmount), 
-        date: new Date().toLocaleString(), 
-        timestamp: Date.now() 
-      });
-      setProviderModalOpen(false); setProviderPaymentAmount('');
-    } catch (err) { console.error(err); }
-  };
-
   // --- 8. FILTROS Y DEUDAS DUALES (PROTEGIDOS CONTRA DATOS CORRUPTOS) ---
   const generalInventory = inventory.filter(i => i.assignedTo === 'general');
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
@@ -532,8 +514,6 @@ export default function App() {
 
   // Finanzas Globales Admin
   const totalBaseCostOwed = salesHistory.reduce((acc, s) => acc + (s.baseCostTotal || 0), 0);
-  const totalProviderPaid = providerPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const currentProviderDebt = totalBaseCostOwed - totalProviderPaid;
   const totalSalesRevenue = salesHistory.reduce((acc, s) => acc + (s.saleTotal || 0), 0);
   const totalCollected = salesHistory.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
   
@@ -1011,7 +991,7 @@ export default function App() {
               {posProfile.role === 'admin' ? (
                 // PANEL FINANZAS ADMIN
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
                       <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ventas Brutas</div>
                       <div className="text-2xl font-black text-gray-900">Q{(totalSalesRevenue || 0).toFixed(2)}</div>
@@ -1019,11 +999,6 @@ export default function App() {
                     <div className="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-100">
                       <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total Cobrado</div>
                       <div className="text-2xl font-black text-blue-700">Q{(totalCollected || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="bg-gray-900 p-5 rounded-2xl shadow-md border text-white relative">
-                      <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Deuda a Proveedor</div>
-                      <div className="text-2xl font-black">Q{(currentProviderDebt || 0).toFixed(2)}</div>
-                      <button onClick={() => setProviderModalOpen(true)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-amber-500 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-amber-600">Abonar</button>
                     </div>
                     <div className="bg-emerald-50 p-5 rounded-2xl shadow-sm border border-emerald-100">
                       <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Ganancia Efectiva</div>
@@ -1082,9 +1057,6 @@ export default function App() {
                         <div className="text-3xl font-black text-red-700">Q{(myDebtToAdmin || 0).toFixed(2)}</div>
                         <p className="text-[10px] text-red-500 font-bold mt-1"><IconInfo className="inline w-3 h-3 mr-1"/> Costo de artículos vendidos menos tus abonos.</p>
                       </div>
-                      <button onClick={() => setAdminAbonoModalOpen(true)} className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl shadow-md whitespace-nowrap">
-                        Abonar al Admin
-                      </button>
                     </div>
                   </div>
                 </>
@@ -1332,33 +1304,6 @@ export default function App() {
             <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nuevo Monto (Q)</label><input type="number" step="0.01" value={editPaymentAmount} onChange={e=>setEditPaymentAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
               <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingPayment(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Pago Proveedor */}
-      {providerModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Pagar al Proveedor</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const processAbonoProv = async () => {
-                try {
-                  await addDoc(getColRef('providerPayments'), {
-                    adminUid: posProfile.adminUid,
-                    amount: Number(providerPaymentAmount), 
-                    date: new Date().toLocaleString(), 
-                    timestamp: Date.now() 
-                  });
-                  setProviderModalOpen(false); setProviderPaymentAmount('');
-                } catch (err) { console.error(err); }
-              };
-              processAbonoProv();
-            }} className="space-y-4">
-              <input type="number" step="0.01" max={currentProviderDebt} value={providerPaymentAmount} onChange={e=>setProviderPaymentAmount(e.target.value)} required placeholder="Monto a pagar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setProviderModalOpen(false)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button></div>
             </form>
           </div>
         </div>
