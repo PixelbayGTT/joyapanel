@@ -106,44 +106,6 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
   );
 };
 
-const AssignCard = ({ item, onAddToAssignCart, cartQty }) => {
-  const [assignQuantity, setAssignQuantity] = useState(1);
-  const [errorMsg, setErrorMsg] = useState('');
-  const availableQty = (item.quantity || 0) - (cartQty || 0);
-  const baseCostUnit = (item.weight || 0) * 40;
-
-  const handleAdd = () => {
-    if (assignQuantity > availableQty || assignQuantity <= 0) {
-      setErrorMsg("Stock insuficiente"); setTimeout(() => setErrorMsg(''), 2000); return;
-    }
-    onAddToAssignCart({
-      inventoryId: item.id, description: item.description || 'Joya', weight: item.weight || 0,
-      quantity: assignQuantity, baseCostTotal: baseCostUnit * assignQuantity
-    });
-    setAssignQuantity(1);
-  };
-
-  return (
-    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex flex-col hover:shadow-md transition-shadow relative">
-      <div className="absolute top-4 right-4 bg-gray-100 px-3 py-1 rounded-full text-xs font-black text-gray-600">Stock Gral: {availableQty}</div>
-      <h3 className="font-black text-gray-800 text-lg mb-1 pr-24 leading-tight">{item.description || 'Sin descripción'}</h3>
-      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight || 0}g &nbsp;•&nbsp; Costo Un.: Q{(baseCostUnit || 0).toFixed(2)}</p>
-
-      <div className="mt-auto space-y-4">
-        <div className="flex gap-2">
-          <div className="w-1/3">
-            <input type="number" min="1" max={availableQty} value={assignQuantity} onChange={(e) => setAssignQuantity(Number(e.target.value))} className="w-full h-full px-2 py-3 text-base bg-gray-50 border border-gray-200 rounded-2xl outline-none text-center font-bold text-gray-700" />
-          </div>
-          <button onClick={handleAdd} disabled={availableQty <= 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm flex items-center justify-center gap-2 ${availableQty <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
-            <IconSend /> {availableQty <= 0 ? 'Agotado' : 'Asignar'}
-          </button>
-        </div>
-        {errorMsg && <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-600 text-lg font-black rounded-3xl z-10 animate-in fade-in zoom-in-95">{errorMsg}</div>}
-      </div>
-    </div>
-  );
-};
-
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -182,6 +144,11 @@ export default function App() {
   const [assignQty, setAssignQty] = useState('');
   const [assignCart, setAssignCart] = useState([]);
   const [selectedSellerToAssign, setSelectedSellerToAssign] = useState('');
+  
+  // --- ESTADOS FALTANTES AÑADIDOS AQUÍ ---
+  const [isAssignCartOpen, setIsAssignCartOpen] = useState(false);
+  const [assignCheckoutModalOpen, setAssignCheckoutModalOpen] = useState(false);
+  // ---------------------------------------
 
   // Carrito Ventas
   const [cart, setCart] = useState([]);
