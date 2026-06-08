@@ -222,11 +222,9 @@ export default function App() {
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // CORRECCIÓN: Ya no borramos el perfil si 'user' es temporalmente null durante la carga.
+      // Esto previene que se borren los datos al recargar la página.
       setFirebaseUser(user);
-      if (!user) {
-        setPosProfile(null);
-        localStorage.removeItem('joyapanel_profile');
-      }
       setLoading(false);
     });
 
@@ -275,7 +273,12 @@ export default function App() {
   const handleSellerLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
-      await signInAnonymously(auth);
+      // CORRECCIÓN: Si el entorno ya nos autenticó (Canvas user/Anónimo), evitamos intentar un nuevo login
+      // que causaba conflicto de permisos y el consecuente "Error de conexión".
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+      
       const globalPinRef = doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput);
       const pinSnap = await getDoc(globalPinRef);
 
@@ -295,7 +298,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    signOut(auth);
+    // CORRECCIÓN: No cerramos la sesión de Firebase internamente para no romper la lectura de Canvas. 
+    // Solo borramos el perfil local de la aplicación, lo que nos devuelve a la pantalla de login con total seguridad.
     setPosProfile(null);
     localStorage.removeItem('joyapanel_profile');
     setLoginMode('select');
