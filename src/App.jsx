@@ -39,16 +39,17 @@ const IconCart = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height
 const IconClose = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
 const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
+const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
 
 // --- COMPONENTES TARJETAS ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
-  const suggestedPrice = item.weight * 80;
+  const suggestedPrice = (item.weight || 0) * 80;
   const [currentPriceStr, setCurrentPriceStr] = useState(suggestedPrice.toString());
   const [sellQuantity, setSellQuantity] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
 
   const currentPrice = currentPriceStr === '' ? 0 : Number(currentPriceStr);
-  const availableQty = item.quantity - cartQty;
+  const availableQty = (item.quantity || 0) - (cartQty || 0);
   const difference = currentPrice - suggestedPrice;
   
   let messageColor = "text-gray-900 bg-gray-50 border-gray-200 focus:border-amber-500 focus:ring-amber-500";
@@ -70,11 +71,11 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
     }
     
     onAddToCart({
-      inventoryId: item.id, description: item.description, weight: item.weight,
+      inventoryId: item.id, description: item.description || 'Joya', weight: item.weight || 0,
       quantity: sellQuantity, salePrice: currentPrice,
-      baseCostTotal: (item.weight * 40) * sellQuantity,
+      baseCostTotal: ((item.weight || 0) * 40) * sellQuantity,
       saleTotal: currentPrice * sellQuantity,
-      profit: (currentPrice * sellQuantity) - ((item.weight * 40) * sellQuantity),
+      profit: (currentPrice * sellQuantity) - (((item.weight || 0) * 40) * sellQuantity),
       difference
     });
     setSellQuantity(1); setCurrentPriceStr(suggestedPrice.toString());
@@ -83,8 +84,8 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex flex-col hover:shadow-md transition-shadow relative">
       <div className="absolute top-4 right-4 bg-gray-100 px-3 py-1 rounded-full text-xs font-black text-gray-600">Stock: {availableQty}</div>
-      <h3 className="font-black text-gray-800 text-lg mb-1 pr-20 leading-tight">{item.description}</h3>
-      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight}g &nbsp;•&nbsp; Sugerido: Q{suggestedPrice.toFixed(2)}</p>
+      <h3 className="font-black text-gray-800 text-lg mb-1 pr-20 leading-tight">{item.description || 'Sin descripción'}</h3>
+      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight || 0}g &nbsp;•&nbsp; Sugerido: Q{(suggestedPrice || 0).toFixed(2)}</p>
 
       <div className="mt-auto space-y-4">
         <div className="relative">
@@ -97,7 +98,7 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
 
         <div className="flex gap-2">
           <div className="w-1/3"><input type="number" min="1" max={availableQty} value={sellQuantity} onChange={(e) => setSellQuantity(Number(e.target.value))} className="w-full h-full px-2 py-3 text-base bg-gray-50 border border-gray-200 rounded-2xl outline-none text-center font-bold text-gray-700" /></div>
-          <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm ${availableQty === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white active:scale-95'}`}>{availableQty === 0 ? 'Agotado' : 'Añadir'}</button>
+          <button onClick={handleAdd} disabled={availableQty <= 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm ${availableQty <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white active:scale-95'}`}>{availableQty <= 0 ? 'Agotado' : 'Añadir'}</button>
         </div>
         {errorMsg && <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-600 text-lg font-black rounded-3xl z-10 animate-in fade-in zoom-in-95">{errorMsg}</div>}
       </div>
@@ -108,15 +109,15 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
 const AssignCard = ({ item, onAddToAssignCart, cartQty }) => {
   const [assignQuantity, setAssignQuantity] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
-  const availableQty = item.quantity - cartQty;
-  const baseCostUnit = item.weight * 40;
+  const availableQty = (item.quantity || 0) - (cartQty || 0);
+  const baseCostUnit = (item.weight || 0) * 40;
 
   const handleAdd = () => {
     if (assignQuantity > availableQty || assignQuantity <= 0) {
       setErrorMsg("Stock insuficiente"); setTimeout(() => setErrorMsg(''), 2000); return;
     }
     onAddToAssignCart({
-      inventoryId: item.id, description: item.description, weight: item.weight,
+      inventoryId: item.id, description: item.description || 'Joya', weight: item.weight || 0,
       quantity: assignQuantity, baseCostTotal: baseCostUnit * assignQuantity
     });
     setAssignQuantity(1);
@@ -125,16 +126,16 @@ const AssignCard = ({ item, onAddToAssignCart, cartQty }) => {
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex flex-col hover:shadow-md transition-shadow relative">
       <div className="absolute top-4 right-4 bg-gray-100 px-3 py-1 rounded-full text-xs font-black text-gray-600">Stock Gral: {availableQty}</div>
-      <h3 className="font-black text-gray-800 text-lg mb-1 pr-24 leading-tight">{item.description}</h3>
-      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight}g &nbsp;•&nbsp; Costo Un.: Q{baseCostUnit.toFixed(2)}</p>
+      <h3 className="font-black text-gray-800 text-lg mb-1 pr-24 leading-tight">{item.description || 'Sin descripción'}</h3>
+      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight || 0}g &nbsp;•&nbsp; Costo Un.: Q{(baseCostUnit || 0).toFixed(2)}</p>
 
       <div className="mt-auto space-y-4">
         <div className="flex gap-2">
           <div className="w-1/3">
             <input type="number" min="1" max={availableQty} value={assignQuantity} onChange={(e) => setAssignQuantity(Number(e.target.value))} className="w-full h-full px-2 py-3 text-base bg-gray-50 border border-gray-200 rounded-2xl outline-none text-center font-bold text-gray-700" />
           </div>
-          <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm flex items-center justify-center gap-2 ${availableQty === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
-            <IconSend /> {availableQty === 0 ? 'Agotado' : 'Asignar'}
+          <button onClick={handleAdd} disabled={availableQty <= 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm flex items-center justify-center gap-2 ${availableQty <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
+            <IconSend /> {availableQty <= 0 ? 'Agotado' : 'Asignar'}
           </button>
         </div>
         {errorMsg && <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-600 text-lg font-black rounded-3xl z-10 animate-in fade-in zoom-in-95">{errorMsg}</div>}
@@ -153,7 +154,6 @@ export default function App() {
   const [loginMode, setLoginMode] = useState('select');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
   const [sellerPinInput, setSellerPinInput] = useState('');
   const [authError, setAuthError] = useState('');
 
@@ -224,7 +224,7 @@ export default function App() {
   const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
   const confirmAction = (message, action) => setConfirmDialog({ message, onConfirm: action });
 
-  // --- 1. SESIÓN ---
+  // --- 1. SESIÓN (CON PROTECCIÓN CONTRA FALLOS DE LOCALSTORAGE) ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -236,27 +236,35 @@ export default function App() {
     };
     initAuth();
 
-    const savedProfile = localStorage.getItem('joyapanel_profile');
-    if (savedProfile) setPosProfile(JSON.parse(savedProfile));
+    try {
+      const savedProfile = localStorage.getItem('joyapanel_profile');
+      if (savedProfile) setPosProfile(JSON.parse(savedProfile));
+    } catch (e) {
+      localStorage.removeItem('joyapanel_profile');
+    }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => { setFirebaseUser(user); setLoading(false); });
+    const unsubscribe = onAuthStateChanged(auth, (user) => { 
+      setFirebaseUser(user); 
+      setLoading(false); 
+    });
     return () => unsubscribe();
   }, []);
 
-  // --- 2. CARGA DE DATOS ---
+  // --- 2. CARGA DE DATOS (CON SEGURIDAD DE RENDER) ---
   useEffect(() => {
-    if (!posProfile || !firebaseUser) return;
+    if (!posProfile || !posProfile.adminUid || !firebaseUser) return;
     
     const adminRefUid = posProfile.adminUid;
     const errorHandler = (err) => console.error("Firestore Error:", err);
+    // Filtrar siempre por el admin general
     const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
 
     const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
-    const unsubSales = onSnapshot(getColRef('sales'), (snap) => setSalesHistory(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
+    const unsubSales = onSnapshot(getColRef('sales'), (snap) => setSalesHistory(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
     const unsubSell = onSnapshot(getColRef('vendedores'), (snap) => setSellers(filterByAdmin(snap)), errorHandler);
-    const unsubSellerPays = onSnapshot(getColRef('sellerPayments'), (snap) => setSellerToAdminPayments(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
-    const unsubAssignments = onSnapshot(getColRef('assignments'), (snap) => setAssignmentsHistory(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
-    const unsubProv = onSnapshot(getColRef('providerPayments'), (snap) => setProviderPayments(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
+    const unsubSellerPays = onSnapshot(getColRef('sellerPayments'), (snap) => setSellerToAdminPayments(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
+    const unsubAssignments = onSnapshot(getColRef('assignments'), (snap) => setAssignmentsHistory(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
+    const unsubProv = onSnapshot(getColRef('providerPayments'), (snap) => setProviderPayments(filterByAdmin(snap).sort((a,b) => (b.timestamp||0) - (a.timestamp||0))), errorHandler);
 
     return () => { unsubInv(); unsubSales(); unsubSell(); unsubSellerPays(); unsubAssignments(); unsubProv(); };
   }, [posProfile, firebaseUser]);
@@ -265,30 +273,29 @@ export default function App() {
   const handleAdminLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
-      let userCred;
-      if (isRegistering) userCred = await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
-      else userCred = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const userCred = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       const profile = { role: 'admin', adminUid: userCred.user.uid, nombre: 'Administrador' };
-      setPosProfile(profile); localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
+      setPosProfile(profile); 
+      localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
       setActiveTab('inventory');
-    } catch (error) { setAuthError("Credenciales incorrectas o correo ya registrado."); }
+    } catch (error) { setAuthError("Credenciales incorrectas o correo no registrado."); }
   };
 
   const handleSellerLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
       if (!auth.currentUser) {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-        else await signInAnonymously(auth);
+        await signInAnonymously(auth);
       }
       const pinSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput));
       if (pinSnap.exists()) {
         const data = pinSnap.data();
         const profile = { role: 'seller', adminUid: data.adminUid, sellerId: data.sellerId, nombre: data.nombre };
-        setPosProfile(profile); localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
+        setPosProfile(profile); 
+        localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
         setActiveTab('sales');
       } else setAuthError("El PIN ingresado no existe.");
-    } catch (error) { setAuthError("Error de acceso."); console.error(error); }
+    } catch (error) { setAuthError("Error de acceso. Revisa tu conexión."); console.error(error); }
   };
 
   const handleLogout = async () => {
@@ -349,7 +356,7 @@ export default function App() {
             adminUid: posProfile.adminUid,
             sellerId: item.assignedTo,
             sellerName: sellerObj ? sellerObj.nombre : 'Desconocido',
-            amount: item.cost * item.quantity,
+            amount: (item.cost || 0) * (item.quantity || 0),
             date: new Date().toLocaleString(),
             timestamp: Date.now(),
             type: 'Baja de Inventario',
@@ -363,7 +370,7 @@ export default function App() {
   // --- 6. LÓGICA ASIGNACIONES (ADMIN) ---
   const handleAddToAssignCart = (item) => setAssignCart([...assignCart, { ...item, cartId: Date.now() + Math.random() }]);
   const removeFromAssignCart = (cartId) => setAssignCart(assignCart.filter(c => c.cartId !== cartId));
-  const assignCartTotalCost = assignCart.reduce((sum, item) => sum + item.baseCostTotal, 0);
+  const assignCartTotalCost = assignCart.reduce((sum, item) => sum + (item.baseCostTotal || 0), 0);
 
   const handleAddDirectAssign = (e) => {
     e.preventDefault();
@@ -400,11 +407,11 @@ export default function App() {
       await addDoc(getColRef('assignments'), newAssignment);
       for (const cItem of assignCart) {
         const genItem = inventory.find(i => i.id === cItem.inventoryId);
-        if (genItem) await updateDoc(getDocRef('inventory', genItem.id), { quantity: genItem.quantity - cItem.quantity });
+        if (genItem) await updateDoc(getDocRef('inventory', genItem.id), { quantity: (genItem.quantity || 0) - cItem.quantity });
         
         const existingSellerItem = inventory.find(i => i.assignedTo === sellerObj.id && i.description === cItem.description && i.weight === cItem.weight);
         if (existingSellerItem) {
-          await updateDoc(getDocRef('inventory', existingSellerItem.id), { quantity: existingSellerItem.quantity + cItem.quantity });
+          await updateDoc(getDocRef('inventory', existingSellerItem.id), { quantity: (existingSellerItem.quantity || 0) + cItem.quantity });
         } else {
           await addDoc(getColRef('inventory'), {
             adminUid: posProfile.adminUid, description: cItem.description, weight: cItem.weight, quantity: cItem.quantity,
@@ -423,7 +430,7 @@ export default function App() {
         for (const item of assignment.items) {
           const sellerItemsRef = inventory.filter(i => i.assignedTo === assignment.sellerId && i.description === item.description && i.weight === item.weight);
           for (const sItem of sellerItemsRef) {
-             const newQty = Math.max(0, sItem.quantity - item.quantity);
+             const newQty = Math.max(0, (sItem.quantity || 0) - item.quantity);
              if (newQty === 0) {
                await deleteDoc(getDocRef('inventory', sItem.id));
              } else {
@@ -441,7 +448,7 @@ export default function App() {
   // --- 7. LÓGICA VENTAS ---
   const handleAddToCart = (item) => setCart([...cart, { ...item, cartId: Date.now() + Math.random() }]);
   const removeFromCart = (cartId) => setCart(cart.filter(c => c.cartId !== cartId));
-  const cartTotal = cart.reduce((sum, item) => sum + item.saleTotal, 0);
+  const cartTotal = cart.reduce((sum, item) => sum + (item.saleTotal || 0), 0);
 
   const processCheckout = async (e) => {
     e.preventDefault();
@@ -449,7 +456,7 @@ export default function App() {
     const paymentAmount = Number(initialPayment);
     if (paymentAmount > cartTotal) return;
 
-    const baseCostTotal = cart.reduce((sum, item) => sum + item.baseCostTotal, 0);
+    const baseCostTotal = cart.reduce((sum, item) => sum + (item.baseCostTotal || 0), 0);
     const balance = cartTotal - paymentAmount;
     
     const newOrder = {
@@ -466,7 +473,7 @@ export default function App() {
       await addDoc(getColRef('sales'), newOrder);
       for (const cItem of cart) {
         const invItem = inventory.find(i => i.id === cItem.inventoryId);
-        if (invItem) await updateDoc(getDocRef('inventory', invItem.id), { quantity: invItem.quantity - cItem.quantity });
+        if (invItem) await updateDoc(getDocRef('inventory', invItem.id), { quantity: (invItem.quantity || 0) - cItem.quantity });
       }
       setCart([]); setCheckoutModalOpen(false); setIsCartOpen(false);
       setCustomerName(''); setCustomerPhone(''); setInitialPayment('');
@@ -480,7 +487,7 @@ export default function App() {
         for (const item of order.items) {
           const invDocRef = getDocRef('inventory', item.inventoryId);
           const invSnap = await getDoc(invDocRef);
-          if(invSnap.exists()) await updateDoc(invDocRef, { quantity: invSnap.data().quantity + item.quantity });
+          if(invSnap.exists()) await updateDoc(invDocRef, { quantity: (invSnap.data().quantity || 0) + item.quantity });
         }
         await deleteDoc(getDocRef('sales', order.id));
         setSelectedOrderDetails(null);
@@ -491,8 +498,8 @@ export default function App() {
   const handleEditOrderSubmit = async (e) => {
     e.preventDefault();
     const newPaidAmount = Number(editPaidAmount);
-    if(newPaidAmount > editingOrder.saleTotal) return;
-    const newBalance = editingOrder.saleTotal - newPaidAmount;
+    if(newPaidAmount > (editingOrder.saleTotal || 0)) return;
+    const newBalance = (editingOrder.saleTotal || 0) - newPaidAmount;
     try {
       await updateDoc(getDocRef('sales', editingOrder.id), {
         customerName: editCustomerName, customerPhone: editCustomerPhone,
@@ -505,9 +512,9 @@ export default function App() {
   const processAbonoCliente = async (e) => {
     e.preventDefault();
     const amount = Number(abonoAmount);
-    if (amount <= 0 || amount > abonoOrder.balance) return;
-    const newPaidAmount = abonoOrder.paidAmount + amount;
-    const newBalance = abonoOrder.saleTotal - newPaidAmount;
+    if (amount <= 0 || amount > (abonoOrder.balance || 0)) return;
+    const newPaidAmount = (abonoOrder.paidAmount || 0) + amount;
+    const newBalance = (abonoOrder.saleTotal || 0) - newPaidAmount;
     try {
       await updateDoc(getDocRef('sales', abonoOrder.id), {
         paidAmount: newPaidAmount, balance: newBalance, status: newBalance <= 0 ? 'Pagada' : 'Pendiente',
@@ -551,47 +558,50 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
-  // --- 8. FILTROS Y DEUDAS DUALES ---
+  // --- 8. FILTROS Y DEUDAS DUALES (PROTEGIDOS CONTRA DATOS CORRUPTOS) ---
   const generalInventory = inventory.filter(i => i.assignedTo === 'general');
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
-  // DEUDA VISTA VENDEDOR (Se basa estrictamente en ventas realizadas menos pagos reales)
-  const myBaseCostSold = salesHistory.filter(s => s.sellerId === posProfile?.sellerId).reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
-  const myTotalPaid = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
-  const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaid) : 0;
-  
-  // Métrica general de finanzas vendedor
-  const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
-  
-  // NUEVAS FÓRMULAS DE GANANCIA PROPORCIONAL
-  const mySales = posProfile?.role === 'seller' ? salesHistory.filter(s => s.sellerId === posProfile.sellerId) : [];
-  const myTotalSales = mySales.reduce((acc, s) => acc + s.saleTotal, 0);
-  const myTotalCollected = mySales.reduce((acc, s) => acc + s.paidAmount, 0); // Efectivo en caja
-  const myNetProfit = mySales.reduce((acc, s) => {
-    const ratio = s.saleTotal > 0 ? (s.paidAmount / s.saleTotal) : 0; // % cobrado de la venta
-    return acc + (s.profit * ratio);
-  }, 0);
-
-  // Finanzas Globales Admin actualizadas proporcionalmente
-  const totalBaseCostOwed = salesHistory.reduce((acc, s) => acc + s.baseCostTotal, 0);
-  const totalProviderPaid = providerPayments.reduce((acc, p) => acc + p.amount, 0);
+  // Finanzas Globales Admin
+  const totalBaseCostOwed = salesHistory.reduce((acc, s) => acc + (s.baseCostTotal || 0), 0);
+  const totalProviderPaid = providerPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const currentProviderDebt = totalBaseCostOwed - totalProviderPaid;
-  const totalSalesRevenue = salesHistory.reduce((acc, s) => acc + s.saleTotal, 0);
-  const totalCollected = salesHistory.reduce((acc, s) => acc + s.paidAmount, 0);
+  const totalSalesRevenue = salesHistory.reduce((acc, s) => acc + (s.saleTotal || 0), 0);
+  const totalCollected = salesHistory.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+  
+  // Ganancia Efectiva (Proporcional a lo cobrado)
   const totalNetProfit = salesHistory.reduce((acc, s) => {
-    const ratio = s.saleTotal > 0 ? (s.paidAmount / s.saleTotal) : 0;
-    return acc + (s.profit * ratio);
+    const sSale = s.saleTotal || 0;
+    const ratio = sSale > 0 ? ((s.paidAmount || 0) / sSale) : 0;
+    return acc + ((s.profit || 0) * ratio);
   }, 0);
 
-  // Finanzas Agrupadas para el Admin (Deuda asignada menos pagos)
+  // Deudas Agrupadas de Vendedores para el Admin
   const calculateAdminSellerDebt = (sId) => {
     const assignedDebt = assignmentsHistory.filter(a => a.sellerId === sId).reduce((sum, a) => sum + (a.baseCostTotal || 0), 0);
-    const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId).reduce((sum, p) => sum + (p.amount || 0), 0);
-    return assignedDebt - totalPaid;
+    const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalAdjustments = sellerToAdminPayments.filter(p => p.sellerId === sId && p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
+    return assignedDebt - totalPaid - totalAdjustments;
   };
 
   const sellerDebts = sellers.map(seller => ({ ...seller, currentDebt: calculateAdminSellerDebt(seller.id) }));
+  
+  // Finanzas Vendedor Específico
+  const mySales = posProfile?.role === 'seller' ? salesHistory.filter(s => s.sellerId === posProfile.sellerId) : [];
+  const myTotalSales = mySales.reduce((acc, s) => acc + (s.saleTotal || 0), 0);
+  const myTotalCollected = mySales.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+  const myNetProfit = mySales.reduce((acc, s) => {
+    const sSale = s.saleTotal || 0;
+    const ratio = sSale > 0 ? ((s.paidAmount || 0) / sSale) : 0;
+    return acc + ((s.profit || 0) * ratio);
+  }, 0);
+
+  const myBaseCostSold = mySales.reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
+  const myTotalPaidToAdmin = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
+  const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaidToAdmin) : 0;
+  
+  const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
 
   // --- RENDERIZADOS ---
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white"><IconDiamond /> Cargando...</div>;
@@ -616,7 +626,7 @@ export default function App() {
               <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} required placeholder="Correo electrónico" className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" />
               <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} required placeholder="Contraseña" className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-medium" />
               {authError && <div className="text-red-500 text-xs font-bold text-center bg-red-50 p-2 rounded-lg">{authError}</div>}
-              <button type="submit" className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl">{isRegistering ? 'Crear Cuenta y Entrar' : 'Iniciar Sesión'}</button>
+              <button type="submit" className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl">Iniciar Sesión</button>
               <div className="text-center pt-2 flex justify-between text-xs font-bold">
                 <button type="button" onClick={() => setLoginMode('select')} className="text-gray-400 hover:text-gray-600">← Volver</button>
               </div>
@@ -647,7 +657,7 @@ export default function App() {
             <IconDiamond />
             <h1 className="text-xl font-black tracking-tight text-gray-900 hidden sm:block">Joya<span className="text-amber-500">Panel</span></h1>
             <span className="ml-2 px-2.5 py-0.5 rounded-full bg-gray-100 text-xs font-bold text-gray-600 border border-gray-200">
-              {posProfile.nombre} ({posProfile.role === 'admin' ? 'Admin' : 'Vendedor'})
+              {posProfile.nombre || 'Usuario'} ({posProfile.role === 'admin' ? 'Admin' : 'Vendedor'})
             </span>
           </div>
           
@@ -723,12 +733,12 @@ export default function App() {
                     <tbody className="divide-y divide-gray-50 text-sm">
                       {visibleInventory.map(item => (
                         <tr key={item.id} className="hover:bg-gray-50/50">
-                          <td className="p-4 font-black text-gray-800">{item.description}</td>
+                          <td className="p-4 font-black text-gray-800">{item.description || 'Sin nombre'}</td>
                           {posProfile.role === 'admin' && <td className="p-4"><span className={`px-2 py-1 rounded-md text-xs font-bold ${item.assignedTo==='general'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700'}`}>{item.assignedTo === 'general' ? 'Caja General' : sellers.find(s=>s.id===item.assignedTo)?.nombre || 'Desconocido'}</span></td>}
-                          <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-black ${item.quantity>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity}</span></td>
-                          <td className="p-4 font-medium">{item.weight}g</td>
-                          <td className="p-4 font-bold text-gray-600">Q{(item.weight * 40).toFixed(2)}</td>
-                          <td className="p-4 font-bold text-emerald-600">Q{(item.weight * 80).toFixed(2)}</td>
+                          <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-black ${(item.quantity||0)>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity || 0}</span></td>
+                          <td className="p-4 font-medium">{item.weight || 0}g</td>
+                          <td className="p-4 font-bold text-gray-600">Q{(item.cost || 0).toFixed(2)}</td>
+                          <td className="p-4 font-bold text-emerald-600">Q{((item.weight || 0) * 80).toFixed(2)}</td>
                           {posProfile.role === 'admin' && (
                             <td className="p-4 flex justify-end gap-2">
                               <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 bg-blue-50 rounded-lg"><IconEdit /></button>
@@ -746,19 +756,19 @@ export default function App() {
                 <div className="md:hidden flex flex-col gap-3 p-4">
                   {visibleInventory.map(item => (
                     <div key={item.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative">
-                       <h4 className="font-black text-gray-800 text-sm leading-tight mb-2">{item.description}</h4>
+                       <h4 className="font-black text-gray-800 text-sm leading-tight mb-2">{item.description || 'Sin nombre'}</h4>
                        <div className="flex justify-between items-center mb-3">
-                         <span className="text-xs text-gray-500 font-bold">{item.weight}g</span>
-                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${item.quantity>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity} disp.</span>
+                         <span className="text-xs text-gray-500 font-bold">{item.weight || 0}g</span>
+                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${(item.quantity||0)>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity || 0} disp.</span>
                        </div>
                        <div className="grid grid-cols-2 gap-2 text-[10px]">
                           <div className="bg-gray-50 p-2 rounded-lg">
                              <span className="block text-gray-400 font-bold uppercase">Costo Base</span>
-                             <span className="font-black text-gray-700">Q{(item.weight*40).toFixed(2)}</span>
+                             <span className="font-black text-gray-700">Q{(item.cost || 0).toFixed(2)}</span>
                           </div>
                           <div className="bg-emerald-50 p-2 rounded-lg">
                              <span className="block text-emerald-600/70 font-bold uppercase">Precio Sug.</span>
-                             <span className="font-black text-emerald-700">Q{(item.weight*80).toFixed(2)}</span>
+                             <span className="font-black text-emerald-700">Q{((item.weight || 0) * 80).toFixed(2)}</span>
                           </div>
                        </div>
                        {posProfile.role === 'admin' && (
@@ -801,7 +811,7 @@ export default function App() {
                 <h3 className="font-bold text-gray-800 mb-2">Vendedores Activos</h3>
                 {sellers.map(s => (
                   <div key={s.id} className="flex items-center justify-between p-4 bg-gray-50 border rounded-xl">
-                    <div className="font-black text-gray-900">{s.nombre}</div>
+                    <div className="font-black text-gray-900">{s.nombre || 'Sin nombre'}</div>
                     <div className="flex gap-4 items-center">
                       <span className="font-mono bg-white border px-3 py-1 rounded-lg text-sm font-bold text-amber-600">PIN: {s.pin}</span>
                       <button onClick={() => deleteSeller(s.id, s.pin)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg bg-white border"><IconTrash /></button>
@@ -859,11 +869,11 @@ export default function App() {
                       {assignCart.map(c => (
                         <div key={c.cartId} className="flex justify-between items-center p-3 border rounded-xl bg-gray-50">
                           <div>
-                            <div className="font-black text-gray-800">{c.description}</div>
-                            <div className="text-xs text-gray-500 font-bold">{c.quantity}x {c.weight}g (Costo: Q{(c.baseCostTotal/c.quantity).toFixed(2)} c/u)</div>
+                            <div className="font-black text-gray-800">{c.description || 'Sin descripción'}</div>
+                            <div className="text-xs text-gray-500 font-bold">{c.quantity}x {c.weight}g (Costo: Q{(c.quantity ? c.baseCostTotal/c.quantity : 0).toFixed(2)} c/u)</div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="font-black text-red-600">Q{c.baseCostTotal.toFixed(2)}</span>
+                            <span className="font-black text-red-600">Q{(c.baseCostTotal || 0).toFixed(2)}</span>
                             <button onClick={() => removeFromAssignCart(c.cartId)} className="text-gray-400 hover:text-red-500"><IconTrash /></button>
                           </div>
                         </div>
@@ -899,7 +909,7 @@ export default function App() {
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {visibleInventory.filter(i=>i.assignedTo !== 'general').map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
+                {visibleInventory.filter(i=>i.assignedTo !== 'general').map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+(b.quantity||0), 0)} />)}
                 {visibleInventory.filter(i=>i.assignedTo !== 'general').length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
               </div>
             </div>
@@ -932,12 +942,12 @@ export default function App() {
                         {visibleHistory.map(order => (
                           <tr key={order.id} className="hover:bg-gray-50/50">
                             <td className="p-4">
-                              <div className="font-black text-gray-900 cursor-pointer text-amber-600 hover:underline" onClick={() => setSelectedOrderDetails(order)}>{order.orderNumber}</div>
-                              <div className="text-xs text-gray-500 font-medium">{order.customerName} - {order.date.split(',')[0]}</div>
+                              <div className="font-black text-gray-900 cursor-pointer text-amber-600 hover:underline" onClick={() => setSelectedOrderDetails(order)}>{order.orderNumber || 'Sin número'}</div>
+                              <div className="text-xs text-gray-500 font-medium">{order.customerName || 'Cliente'} - {order.date ? order.date.split(',')[0] : 'Sin fecha'}</div>
                             </td>
-                            <td className="p-4 font-black text-gray-900">Q{order.saleTotal.toFixed(2)}</td>
-                            <td className="p-4 font-bold text-red-600">Q{order.balance.toFixed(2)}</td>
-                            <td className="p-4"><span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${order.status==='Pagada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{order.status}</span></td>
+                            <td className="p-4 font-black text-gray-900">Q{(order.saleTotal || 0).toFixed(2)}</td>
+                            <td className="p-4 font-bold text-red-600">Q{(order.balance || 0).toFixed(2)}</td>
+                            <td className="p-4"><span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${order.status==='Pagada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{order.status || 'Pendiente'}</span></td>
                             <td className="p-4 flex items-center justify-end gap-2">
                               {order.status === 'Pendiente' && <button onClick={() => {setAbonoOrder(order); setAbonoModalOpen(true);}} className="text-xs font-bold bg-amber-500 text-white px-3 py-1.5 rounded-lg">Abonar</button>}
                               <button onClick={() => { setEditingOrder(order); setEditCustomerName(order.customerName); setEditCustomerPhone(order.customerPhone || ''); setEditPaidAmount(order.paidAmount); }} className="text-xs font-bold border bg-gray-50 px-3 py-1.5 rounded-lg text-gray-700">Editar</button>
@@ -956,15 +966,15 @@ export default function App() {
                       <div key={order.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="font-black text-gray-900 cursor-pointer text-amber-600 text-sm mb-0.5 hover:underline" onClick={() => setSelectedOrderDetails(order)}>{order.orderNumber}</div>
-                            <div className="text-[11px] text-gray-500 font-bold">{order.customerName}</div>
-                            <div className="text-[10px] text-gray-400 mt-0.5">{order.date.split(',')[0]}</div>
+                            <div className="font-black text-gray-900 cursor-pointer text-amber-600 text-sm mb-0.5 hover:underline" onClick={() => setSelectedOrderDetails(order)}>{order.orderNumber || 'Sin número'}</div>
+                            <div className="text-[11px] text-gray-500 font-bold">{order.customerName || 'Cliente'}</div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">{order.date ? order.date.split(',')[0] : 'Sin fecha'}</div>
                           </div>
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${order.status==='Pagada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{order.status}</span>
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${order.status==='Pagada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{order.status || 'Pendiente'}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 mb-3 bg-gray-50 p-2 rounded-xl">
-                          <div><span className="block text-[9px] text-gray-400 font-bold uppercase">Total Venta</span><span className="font-black text-gray-800 text-sm">Q{order.saleTotal.toFixed(2)}</span></div>
-                          <div><span className="block text-[9px] text-gray-400 font-bold uppercase">Saldo</span><span className="font-black text-red-600 text-sm">Q{order.balance.toFixed(2)}</span></div>
+                          <div><span className="block text-[9px] text-gray-400 font-bold uppercase">Total Venta</span><span className="font-black text-gray-800 text-sm">Q{(order.saleTotal || 0).toFixed(2)}</span></div>
+                          <div><span className="block text-[9px] text-gray-400 font-bold uppercase">Saldo</span><span className="font-black text-red-600 text-sm">Q{(order.balance || 0).toFixed(2)}</span></div>
                         </div>
                         <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-gray-50">
                           {order.status === 'Pendiente' && <button onClick={() => {setAbonoOrder(order); setAbonoModalOpen(true);}} className="text-[11px] font-bold bg-amber-500 text-white px-4 py-2 rounded-xl">Abonar</button>}
@@ -986,11 +996,11 @@ export default function App() {
                         {assignmentsHistory.map(assign => (
                           <tr key={assign.id} className="hover:bg-gray-50/50">
                             <td className="p-4">
-                              <div className="font-black text-gray-900 cursor-pointer text-blue-600 hover:underline" onClick={() => setSelectedAssignmentDetails(assign)}>{assign.assignmentNumber}</div>
-                              <div className="text-xs text-gray-500 font-medium">{assign.date.split(',')[0]}</div>
+                              <div className="font-black text-gray-900 cursor-pointer text-blue-600 hover:underline" onClick={() => setSelectedAssignmentDetails(assign)}>{assign.assignmentNumber || 'Sin número'}</div>
+                              <div className="text-xs text-gray-500 font-medium">{assign.date ? assign.date.split(',')[0] : 'Sin fecha'}</div>
                             </td>
-                            <td className="p-4 font-black text-gray-800">{assign.sellerName}</td>
-                            <td className="p-4 font-black text-red-600">Q{assign.baseCostTotal.toFixed(2)}</td>
+                            <td className="p-4 font-black text-gray-800">{assign.sellerName || 'Desconocido'}</td>
+                            <td className="p-4 font-black text-red-600">Q{(assign.baseCostTotal || 0).toFixed(2)}</td>
                             <td className="p-4 flex items-center justify-end gap-2">
                               <button onClick={() => handleDeleteAssignment(assign)} className="text-xs font-bold border bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100"><IconTrash/></button>
                             </td>
@@ -1007,14 +1017,14 @@ export default function App() {
                       <div key={assign.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="font-black text-gray-900 cursor-pointer text-blue-600 text-sm mb-0.5 hover:underline" onClick={() => setSelectedAssignmentDetails(assign)}>{assign.assignmentNumber}</div>
-                            <div className="text-[11px] text-gray-500 font-bold">{assign.date.split(',')[0]}</div>
+                            <div className="font-black text-gray-900 cursor-pointer text-blue-600 text-sm mb-0.5 hover:underline" onClick={() => setSelectedAssignmentDetails(assign)}>{assign.assignmentNumber || 'Sin número'}</div>
+                            <div className="text-[11px] text-gray-500 font-bold">{assign.date ? assign.date.split(',')[0] : 'Sin fecha'}</div>
                           </div>
-                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-blue-50 text-blue-700">{assign.sellerName}</span>
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-blue-50 text-blue-700">{assign.sellerName || 'Desconocido'}</span>
                         </div>
                         <div className="bg-red-50 p-3 rounded-xl flex justify-between items-center mb-3 border border-red-100">
                           <span className="block text-[10px] text-red-500 font-bold uppercase">Deuda Adquirida</span>
-                          <span className="font-black text-red-700 text-sm">Q{assign.baseCostTotal.toFixed(2)}</span>
+                          <span className="font-black text-red-700 text-sm">Q{(assign.baseCostTotal || 0).toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-gray-50">
                           <button onClick={() => handleDeleteAssignment(assign)} className="text-[11px] font-bold border border-red-100 bg-red-50 text-red-600 px-4 py-2 rounded-xl flex items-center gap-1"><IconTrash/> Eliminar Asignación</button>
@@ -1037,20 +1047,20 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
                       <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ventas Brutas</div>
-                      <div className="text-2xl font-black text-gray-900">Q{totalSalesRevenue.toFixed(2)}</div>
+                      <div className="text-2xl font-black text-gray-900">Q{(totalSalesRevenue || 0).toFixed(2)}</div>
                     </div>
                     <div className="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-100">
                       <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total Cobrado</div>
-                      <div className="text-2xl font-black text-blue-700">Q{totalCollected.toFixed(2)}</div>
+                      <div className="text-2xl font-black text-blue-700">Q{(totalCollected || 0).toFixed(2)}</div>
                     </div>
                     <div className="bg-gray-900 p-5 rounded-2xl shadow-md border text-white relative">
                       <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Deuda a Proveedor</div>
-                      <div className="text-2xl font-black">Q{currentProviderDebt.toFixed(2)}</div>
+                      <div className="text-2xl font-black">Q{(currentProviderDebt || 0).toFixed(2)}</div>
                       <button onClick={() => setProviderModalOpen(true)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-amber-500 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-amber-600">Abonar</button>
                     </div>
                     <div className="bg-emerald-50 p-5 rounded-2xl shadow-sm border border-emerald-100">
                       <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Ganancia Efectiva</div>
-                      <div className="text-2xl font-black text-emerald-700">Q{totalNetProfit.toFixed(2)}</div>
+                      <div className="text-2xl font-black text-emerald-700">Q{(totalNetProfit || 0).toFixed(2)}</div>
                     </div>
                   </div>
                   
@@ -1061,12 +1071,12 @@ export default function App() {
                       {sellerDebts.map(s => (
                         <div key={s.id} className="flex justify-between items-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
                           <div>
-                            <div className="font-bold text-gray-900 mb-1">{s.nombre}</div>
+                            <div className="font-bold text-gray-900 mb-1">{s.nombre || 'Sin nombre'}</div>
                             <button onClick={() => { setSellerToPay(s); setAdminAbonoModalOpen(true); }} className="text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold">Registrar Pago</button>
                           </div>
                           <div className="text-right">
                             <div className="text-xs text-gray-400 font-bold uppercase">Deuda Pendiente</div>
-                            <div className={`font-black text-xl ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
+                            <div className={`font-black text-xl ${(s.currentDebt || 0) > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{(s.currentDebt || 0).toFixed(2)}</div>
                           </div>
                         </div>
                       ))}
@@ -1085,24 +1095,24 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-3 p-6 gap-4">
                       <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200">
                         <div className="text-[10px] font-bold text-gray-500 uppercase mb-1">Ventas Brutas</div>
-                        <div className="text-2xl font-black text-gray-800">Q{myTotalSales.toFixed(2)}</div>
+                        <div className="text-2xl font-black text-gray-800">Q{(myTotalSales || 0).toFixed(2)}</div>
                         <p className="text-[10px] text-gray-400 mt-1">Total vendido (incluye créditos)</p>
                       </div>
                       <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
                         <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total Cobrado</div>
-                        <div className="text-2xl font-black text-blue-700">Q{myTotalCollected.toFixed(2)}</div>
+                        <div className="text-2xl font-black text-blue-700">Q{(myTotalCollected || 0).toFixed(2)}</div>
                         <p className="text-[10px] text-blue-500 mt-1">Efectivo/Transferencia recibida</p>
                       </div>
                       <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
                         <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Ganancia Neta (Efectiva)</div>
-                        <div className="text-2xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
+                        <div className="text-2xl font-black text-emerald-700">Q{(myNetProfit || 0).toFixed(2)}</div>
                         <p className="text-[10px] text-emerald-500 mt-1">Libre sobre lo ya cobrado</p>
                       </div>
                     </div>
                     <div className="bg-red-50 p-6 mx-6 mb-6 rounded-2xl border border-red-200 flex flex-col md:flex-row justify-between items-center gap-4">
                       <div>
                         <div className="text-xs font-bold text-red-600 uppercase mb-1">Deuda Pendiente al Admin (Costo Mercancía)</div>
-                        <div className="text-3xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
+                        <div className="text-3xl font-black text-red-700">Q{(myDebtToAdmin || 0).toFixed(2)}</div>
                         <p className="text-[10px] text-red-500 font-bold mt-1"><IconInfo className="inline w-3 h-3 mr-1"/> Costo de artículos vendidos menos tus abonos.</p>
                       </div>
                       <button onClick={() => setAdminAbonoModalOpen(true)} className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl shadow-md whitespace-nowrap">
@@ -1128,14 +1138,14 @@ export default function App() {
               <div className="flex-grow overflow-y-auto p-4 space-y-3">
                 {cart.map(c => (
                   <div key={c.cartId} className="bg-white p-3 rounded-xl border relative pr-8">
-                    <div className="text-sm font-black truncate">{c.description}</div>
-                    <div className="text-xs text-gray-500 mt-1">{c.quantity}x Q{c.salePrice} = <b>Q{c.saleTotal.toFixed(2)}</b></div>
+                    <div className="text-sm font-black truncate">{c.description || 'Sin nombre'}</div>
+                    <div className="text-xs text-gray-500 mt-1">{c.quantity}x Q{c.salePrice} = <b>Q{(c.saleTotal || 0).toFixed(2)}</b></div>
                     <button onClick={() => removeFromCart(c.cartId)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"><IconClose /></button>
                   </div>
                 ))}
               </div>
               <div className="p-5 border-t bg-gray-50 rounded-b-2xl">
-                <div className="flex justify-between items-center mb-4"><span className="font-bold text-gray-500">Total:</span><span className="text-2xl font-black text-amber-500">Q{cartTotal.toFixed(2)}</span></div>
+                <div className="flex justify-between items-center mb-4"><span className="font-bold text-gray-500">Total:</span><span className="text-2xl font-black text-amber-500">Q{(cartTotal || 0).toFixed(2)}</span></div>
                 <button onClick={() => setCheckoutModalOpen(true)} disabled={cart.length === 0} className="w-full py-3.5 bg-gray-900 text-white rounded-xl font-bold disabled:bg-gray-300">Cobrar</button>
               </div>
             </div>
@@ -1154,15 +1164,15 @@ export default function App() {
               <div className="flex-grow overflow-y-auto p-4 space-y-3">
                 {assignCart.map(c => (
                   <div key={c.cartId} className="bg-white p-3 rounded-xl border relative pr-8">
-                    <div className="text-sm font-black truncate text-gray-800">{c.description}</div>
-                    <div className="text-xs text-gray-500 mt-1">{c.quantity}x Q{(c.baseCostTotal/c.quantity).toFixed(2)} = <b className="text-red-500">Q{c.baseCostTotal.toFixed(2)}</b></div>
+                    <div className="text-sm font-black truncate text-gray-800">{c.description || 'Sin nombre'}</div>
+                    <div className="text-xs text-gray-500 mt-1">{c.quantity}x Q{c.quantity ? (c.baseCostTotal/c.quantity).toFixed(2) : '0.00'} = <b className="text-red-500">Q{(c.baseCostTotal || 0).toFixed(2)}</b></div>
                     <button onClick={() => removeFromAssignCart(c.cartId)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"><IconClose /></button>
                   </div>
                 ))}
                 {assignCart.length === 0 && <div className="text-center text-sm text-gray-400 mt-10 font-bold">Añade joyas para asignar.</div>}
               </div>
               <div className="p-5 border-t bg-gray-50 rounded-b-2xl">
-                <div className="flex justify-between items-center mb-4"><span className="font-bold text-gray-500 text-xs uppercase">Deuda Total:</span><span className="text-2xl font-black text-red-600">Q{assignCartTotalCost.toFixed(2)}</span></div>
+                <div className="flex justify-between items-center mb-4"><span className="font-bold text-gray-500 text-xs uppercase">Deuda Total:</span><span className="text-2xl font-black text-red-600">Q{(assignCartTotalCost || 0).toFixed(2)}</span></div>
                 <button onClick={() => setAssignCheckoutModalOpen(true)} disabled={assignCart.length === 0} className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300 transition-colors">Seleccionar Vendedor</button>
               </div>
             </div>
@@ -1178,7 +1188,7 @@ export default function App() {
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="p-5 bg-gray-50 border-b flex justify-between"><h3 className="font-black">Completar Venta</h3><button onClick={() => setCheckoutModalOpen(false)}><IconClose/></button></div>
             <form onSubmit={processCheckout} className="p-6 space-y-4">
-              <div className="bg-amber-50 p-4 rounded-2xl flex justify-between border border-amber-100"><span className="font-bold text-amber-800 text-sm">Total:</span><span className="text-3xl font-black text-amber-600">Q{cartTotal.toFixed(2)}</span></div>
+              <div className="bg-amber-50 p-4 rounded-2xl flex justify-between border border-amber-100"><span className="font-bold text-amber-800 text-sm">Total:</span><span className="text-3xl font-black text-amber-600">Q{(cartTotal || 0).toFixed(2)}</span></div>
               <input type="text" value={customerName} onChange={e=>setCustomerName(e.target.value)} required placeholder="Nombre Cliente" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
               <input type="text" value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)} placeholder="Teléfono" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
               <div className="flex gap-4">
@@ -1202,13 +1212,13 @@ export default function App() {
                     <span className="font-bold text-red-800 text-sm block">Deuda Base:</span>
                     <span className="text-xs text-red-500">Costo total del lote</span>
                  </div>
-                 <span className="text-3xl font-black text-red-600">Q{assignCartTotalCost.toFixed(2)}</span>
+                 <span className="text-3xl font-black text-red-600">Q{(assignCartTotalCost || 0).toFixed(2)}</span>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Selecciona el Vendedor</label>
                 <select value={selectedSellerToAssign} onChange={e=>setSelectedSellerToAssign(e.target.value)} className="w-full px-3 py-3.5 border rounded-xl font-black text-gray-800 bg-gray-50" required>
                   <option value="" disabled>-- Elige un vendedor --</option>
-                  {sellers.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {sellers.map(s => <option key={s.id} value={s.id}>{s.nombre || 'Sin nombre'}</option>)}
                 </select>
               </div>
               <button type="submit" className="w-full mt-4 py-3.5 bg-blue-600 text-white font-black rounded-xl text-lg hover:bg-blue-700 transition-colors">Confirmar y Asignar</button>
@@ -1221,36 +1231,36 @@ export default function App() {
       {selectedOrderDetails && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b flex justify-between"><h3 className="font-black">Orden: <span className="text-amber-600">{selectedOrderDetails.orderNumber}</span></h3><button onClick={() => setSelectedOrderDetails(null)}><IconClose/></button></div>
+            <div className="p-5 border-b flex justify-between"><h3 className="font-black">Orden: <span className="text-amber-600">{selectedOrderDetails.orderNumber || 'Sin número'}</span></h3><button onClick={() => setSelectedOrderDetails(null)}><IconClose/></button></div>
             <div className="p-6 overflow-y-auto space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Cliente</span> <div className="font-black text-gray-800">{selectedOrderDetails.customerName}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Cliente</span> <div className="font-black text-gray-800">{selectedOrderDetails.customerName || 'Cliente'}</div></div>
                 <div><span className="text-gray-400 text-[10px] font-bold uppercase">Teléfono</span> <div className="font-bold text-gray-600">{selectedOrderDetails.customerPhone || 'N/A'}</div></div>
-                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Vendedor</span> <div className="font-bold text-gray-600">{selectedOrderDetails.sellerName}</div></div>
-                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Estado</span> <div className={selectedOrderDetails.status==='Pagada'?'text-emerald-600 font-black':'text-red-600 font-black'}>{selectedOrderDetails.status}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Vendedor</span> <div className="font-bold text-gray-600">{selectedOrderDetails.sellerName || 'Desconocido'}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Estado</span> <div className={selectedOrderDetails.status==='Pagada'?'text-emerald-600 font-black':'text-red-600 font-black'}>{selectedOrderDetails.status || 'Pendiente'}</div></div>
               </div>
               <div>
                 <h4 className="font-black mb-3 border-b pb-2">Artículos Vendidos</h4>
-                {selectedOrderDetails.items.map((it, idx) => (
+                {(selectedOrderDetails.items || []).map((it, idx) => (
                   <div key={idx} className="border border-gray-200 p-4 rounded-2xl mb-3 bg-white shadow-sm">
-                    <div className="flex justify-between font-black mb-2 text-gray-800"><span>{it.quantity}x {it.description}</span><span className="text-amber-600">Q{it.saleTotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between font-black mb-2 text-gray-800"><span>{it.quantity}x {it.description || 'Joya'}</span><span className="text-amber-600">Q{(it.saleTotal || 0).toFixed(2)}</span></div>
                     <div className="flex flex-col gap-1.5 text-[11px] bg-gray-50 p-3 rounded-xl border border-gray-100">
-                       <div className="flex justify-between font-bold text-gray-600"><span>Costo Un: Q{(it.baseCostTotal / it.quantity).toFixed(2)}</span><span>Venta Un: Q{it.salePrice.toFixed(2)}</span></div>
+                       <div className="flex justify-between font-bold text-gray-600"><span>Costo Un: Q{it.quantity ? (it.baseCostTotal / it.quantity).toFixed(2) : '0.00'}</span><span>Venta Un: Q{(it.salePrice || 0).toFixed(2)}</span></div>
                        <div className="flex justify-between items-center mt-1">
                          {it.difference < -0.01 && <span className="text-[10px] text-red-600 font-black bg-red-100/50 px-2 py-1 rounded-md">↓ Q{Math.abs(it.difference).toFixed(2)} Desc/Un.</span>}
                          {it.difference > 0.01 && <span className="text-[10px] text-emerald-600 font-black bg-emerald-100/50 px-2 py-1 rounded-md">↑ Q{Math.abs(it.difference).toFixed(2)} Extra/Un.</span>}
                          {Math.abs(it.difference || 0) <= 0.01 && <span className="text-[10px] text-gray-400 font-bold bg-white px-2 py-1 rounded-md border shadow-sm">✓ Sugerido</span>}
                        </div>
-                       <div className="flex justify-between font-black mt-2 pt-2 border-t border-gray-200"><span className="text-gray-500">Costo Base Total: Q{it.baseCostTotal.toFixed(2)}</span><span className="text-emerald-600">Ganancia Neta: Q{it.profit.toFixed(2)}</span></div>
+                       <div className="flex justify-between font-black mt-2 pt-2 border-t border-gray-200"><span className="text-gray-500">Costo Base Total: Q{(it.baseCostTotal || 0).toFixed(2)}</span><span className="text-emerald-600">Ganancia Neta: Q{(it.profit || 0).toFixed(2)}</span></div>
                     </div>
                   </div>
                 ))}
               </div>
               <div>
                 <h4 className="font-black mb-2 border-b pb-2">Historial de Pagos del Cliente</h4>
-                {selectedOrderDetails.payments?.map(p => (
+                {(selectedOrderDetails.payments || []).map(p => (
                   <div key={p.id} className="flex justify-between text-xs py-1 border-b border-dashed text-gray-600">
-                    <span>{p.date.split(',')[0]} - {p.type} ({p.method})</span><span className="font-bold text-gray-900">Q{p.amount.toFixed(2)}</span>
+                    <span>{p.date ? p.date.split(',')[0] : 'Sin fecha'} - {p.type} ({p.method})</span><span className="font-bold text-gray-900">Q{(p.amount || 0).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -1264,13 +1274,13 @@ export default function App() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-5 border-b flex justify-between bg-blue-50 rounded-t-3xl">
-               <h3 className="font-black text-blue-900">Asignación: <span className="text-blue-600">{selectedAssignmentDetails.assignmentNumber}</span></h3>
+               <h3 className="font-black text-blue-900">Asignación: <span className="text-blue-600">{selectedAssignmentDetails.assignmentNumber || 'Sin número'}</span></h3>
                <button onClick={() => setSelectedAssignmentDetails(null)} className="text-blue-600"><IconClose/></button>
             </div>
             <div className="p-6 overflow-y-auto space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Vendedor Receptor</span> <div className="font-black text-gray-800">{selectedAssignmentDetails.sellerName}</div></div>
-                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Fecha</span> <div className="font-bold text-gray-600">{selectedAssignmentDetails.date.split(',')[0]}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Vendedor Receptor</span> <div className="font-black text-gray-800">{selectedAssignmentDetails.sellerName || 'Desconocido'}</div></div>
+                <div><span className="text-gray-400 text-[10px] font-bold uppercase">Fecha</span> <div className="font-bold text-gray-600">{selectedAssignmentDetails.date ? selectedAssignmentDetails.date.split(',')[0] : 'Sin fecha'}</div></div>
               </div>
               
               <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex justify-between items-center">
@@ -1278,20 +1288,20 @@ export default function App() {
                     <span className="font-bold text-red-800 text-sm block">Deuda Base:</span>
                     <span className="text-xs text-red-500">Costo total del lote</span>
                  </div>
-                 <span className="text-xl font-black text-red-600">Q{selectedAssignmentDetails.baseCostTotal.toFixed(2)}</span>
+                 <span className="text-xl font-black text-red-600">Q{(selectedAssignmentDetails.baseCostTotal || 0).toFixed(2)}</span>
               </div>
 
               <div>
                 <h4 className="font-black mb-3 border-b pb-2 text-gray-800">Inventario Entregado</h4>
-                {selectedAssignmentDetails.items.map((it, idx) => (
+                {(selectedAssignmentDetails.items || []).map((it, idx) => (
                   <div key={idx} className="border border-gray-200 p-4 rounded-2xl mb-3 bg-white shadow-sm flex flex-col">
                     <div className="flex justify-between font-black mb-1.5 text-gray-800">
-                      <span>{it.quantity}x {it.description}</span>
-                      <span className="text-red-500">Q{it.baseCostTotal.toFixed(2)}</span>
+                      <span>{it.quantity}x {it.description || 'Joya'}</span>
+                      <span className="text-red-500">Q{(it.baseCostTotal || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-[11px] font-bold text-gray-500">
-                      <span>Peso: {it.weight}g</span>
-                      <span>Costo Un: Q{(it.baseCostTotal / it.quantity).toFixed(2)}</span>
+                      <span>Peso: {it.weight || 0}g</span>
+                      <span>Costo Un: Q{it.quantity ? (it.baseCostTotal / it.quantity).toFixed(2) : '0.00'}</span>
                     </div>
                   </div>
                 ))}
@@ -1305,7 +1315,7 @@ export default function App() {
       {editingOrder && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Editar Orden: {editingOrder.orderNumber}</h3>
+            <h3 className="font-black mb-4">Editar Orden: {editingOrder.orderNumber || 'Sin número'}</h3>
             <form onSubmit={handleEditOrderSubmit} className="space-y-4">
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre Cliente</label><input type="text" value={editCustomerName} onChange={e=>setEditCustomerName(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Teléfono</label><input type="text" value={editCustomerPhone} onChange={e=>setEditCustomerPhone(e.target.value)} className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
@@ -1322,8 +1332,8 @@ export default function App() {
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
             <h3 className="font-black mb-4">Abono del Cliente</h3>
             <form onSubmit={processAbonoCliente} className="space-y-4">
-              <div className="flex justify-between mb-4"><b>Saldo Pendiente:</b><b className="text-red-500">Q{abonoOrder.balance.toFixed(2)}</b></div>
-              <input type="number" step="0.01" max={abonoOrder.balance} value={abonoAmount} onChange={e=>setAbonoAmount(e.target.value)} required placeholder="Monto a abonar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              <div className="flex justify-between mb-4"><b>Saldo Pendiente:</b><b className="text-red-500">Q{(abonoOrder.balance || 0).toFixed(2)}</b></div>
+              <input type="number" step="0.01" max={abonoOrder.balance || 0} value={abonoAmount} onChange={e=>setAbonoAmount(e.target.value)} required placeholder="Monto a abonar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
               <select value={abonoMethod} onChange={e=>setAbonoMethod(e.target.value)} className="w-full px-3 py-2.5 bg-white border rounded-xl font-bold"><option>Efectivo</option><option>Transferencia</option></select>
               <button type="submit" className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl">Guardar Abono</button>
             </form>
@@ -1336,37 +1346,11 @@ export default function App() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
             <h3 className="font-black mb-1">Registrar Pago de Vendedor</h3>
-            <p className="text-sm text-gray-500 mb-4 font-bold">{sellerToPay.nombre}</p>
+            <p className="text-sm text-gray-500 mb-4 font-bold">{sellerToPay.nombre || 'Sin nombre'}</p>
             <form onSubmit={processAbonoAdmin} className="space-y-4">
-              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{sellerToPay.currentDebt.toFixed(2)}</b></div>
+              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{(sellerToPay.currentDebt || 0).toFixed(2)}</b></div>
               <input type="number" step="0.01" value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
               <div className="flex gap-3 pt-4"><button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null);}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Abono Modal Desde El Vendedor al Admin */}
-      {adminAbonoModalOpen && posProfile?.role === 'seller' && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Abonar al Administrador</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const processAbonoAdminSellerSide = async () => {
-                try {
-                  await addDoc(getColRef('sellerPayments'), {
-                    adminUid: posProfile.adminUid, sellerId: posProfile.sellerId, sellerName: posProfile.nombre,
-                    amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
-                  });
-                  setAdminAbonoModalOpen(false); setAdminAbonoAmount('');
-                } catch(err) { console.error(err); }
-              };
-              processAbonoAdminSellerSide();
-            }} className="space-y-4">
-              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{myDebtToAdmin.toFixed(2)}</b></div>
-              <input type="number" step="0.01" max={myDebtToAdmin} value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado al Admin" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => {setAdminAbonoModalOpen(false); setAdminAbonoAmount('');}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md">Registrar Entrega</button></div>
             </form>
           </div>
         </div>
@@ -1377,7 +1361,7 @@ export default function App() {
          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
             <h3 className="font-black mb-1">Editar Abono Registrado</h3>
-            <p className="text-sm text-gray-500 mb-4 font-bold">{editingPayment.sellerName}</p>
+            <p className="text-sm text-gray-500 mb-4 font-bold">{editingPayment.sellerName || 'Desconocido'}</p>
             <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nuevo Monto (Q)</label><input type="number" step="0.01" value={editPaymentAmount} onChange={e=>setEditPaymentAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
               <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingPayment(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button></div>
