@@ -562,7 +562,10 @@ export default function App() {
 
   // --- 8. FILTROS Y DEUDAS DUALES (PROTEGIDOS CONTRA DATOS CORRUPTOS) ---
   const generalInventory = inventory.filter(i => i.assignedTo === 'general');
-  const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
+  // Se filtran los artículos con cantidad 0 para que no sean visibles al vendedor. El administrador sí los puede ver.
+  const visibleInventory = posProfile?.role === 'admin' 
+    ? inventory 
+    : inventory.filter(i => i.assignedTo === posProfile?.sellerId && (i.quantity || 0) > 0);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
   const visibleAssignments = posProfile?.role === 'admin' ? assignmentsHistory : assignmentsHistory.filter(a => a.sellerId === posProfile?.sellerId);
 
