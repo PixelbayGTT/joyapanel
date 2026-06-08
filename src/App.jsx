@@ -40,6 +40,7 @@ const IconClose = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" heigh
 const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
 const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+const IconPrint = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>;
 
 // --- COMPONENTES TARJETAS ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
@@ -144,10 +145,8 @@ export default function App() {
   const [assignCart, setAssignCart] = useState([]);
   const [selectedSellerToAssign, setSelectedSellerToAssign] = useState('');
   
-  // --- ESTADOS FALTANTES AÑADIDOS AQUÍ ---
   const [isAssignCartOpen, setIsAssignCartOpen] = useState(false);
   const [assignCheckoutModalOpen, setAssignCheckoutModalOpen] = useState(false);
-  // ---------------------------------------
 
   // Carrito Ventas
   const [cart, setCart] = useState([]);
@@ -407,6 +406,75 @@ export default function App() {
     });
   };
 
+  // --- IMPRIMIR / PDF ---
+  const handlePrint = (data, type) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    let html = `
+      <html>
+      <head>
+        <title>Recibo ${data.orderNumber || data.assignmentNumber || ''}</title>
+        <style>
+          body { font-family: sans-serif; padding: 20px; color: #111; line-height: 1.5; }
+          h1 { margin-bottom: 5px; font-size: 24px; }
+          .header-info { margin-bottom: 20px; font-size: 14px; }
+          .table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+          .table th, .table td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+          .table th { background-color: #f4f4f5; }
+          .right { text-align: right; }
+          .total-box { margin-top: 20px; padding-top: 10px; border-top: 2px solid #111; text-align: right; font-size: 16px; font-weight: bold; }
+          .footer { margin-top: 40px; font-size: 12px; color: #666; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <h1>JoyaPanel</h1>
+    `;
+
+    if (type === 'sale') {
+      html += `
+        <div class="header-info">
+          <p><b>Recibo de Venta:</b> ${data.orderNumber}</p>
+          <p><b>Cliente:</b> ${data.customerName}<br>
+          <b>Teléfono:</b> ${data.customerPhone || 'N/A'}<br>
+          <b>Atendido por:</b> ${data.sellerName}<br>
+          <b>Fecha:</b> ${data.date}</p>
+        </div>
+        <table class="table">
+          <thead><tr><th>Descripción</th><th>Costo Un.</th><th>Venta Un.</th><th class="right">Total Venta</th></tr></thead>
+          <tbody>
+            ${(data.items || []).map(i => `<tr><td>${i.quantity}x ${i.description} (${i.weight}g)</td><td>Q${(i.baseCostTotal / (i.quantity||1)).toFixed(2)}</td><td>Q${(i.salePrice||0).toFixed(2)}</td><td class="right">Q${(i.saleTotal||0).toFixed(2)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="total-box">Total a Pagar: Q${(data.saleTotal||0).toFixed(2)}</div>
+        <div style="text-align: right; font-size: 14px; margin-top: 5px;">Monto Pagado: Q${(data.paidAmount||0).toFixed(2)} | Saldo Restante: Q${(data.balance||0).toFixed(2)}</div>
+        <div class="footer">¡Gracias por su compra!</div>
+      `;
+    } else if (type === 'assignment') {
+      html += `
+        <div class="header-info">
+          <p><b>Comprobante de Asignación de Inventario:</b> ${data.assignmentNumber}</p>
+          <p><b>Vendedor Receptor:</b> ${data.sellerName}<br>
+          <b>Fecha:</b> ${data.date}</p>
+        </div>
+        <table class="table">
+          <thead><tr><th>Descripción</th><th>Peso</th><th>Costo Un.</th><th class="right">Costo Total Base</th></tr></thead>
+          <tbody>
+            ${(data.items || []).map(i => `<tr><td>${i.quantity}x ${i.description}</td><td>${i.weight}g</td><td>Q${(i.baseCostTotal / (i.quantity||1)).toFixed(2)}</td><td class="right">Q${(i.baseCostTotal||0).toFixed(2)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="total-box">Deuda Adquirida (Costo Base): Q${(data.baseCostTotal||0).toFixed(2)}</div>
+        <div class="footer">Documento interno de asignación de mercadería.</div>
+      `;
+    }
+
+    html += `</body></html>`;
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+  };
+
   // --- 7. LÓGICA VENTAS ---
   const handleAddToCart = (item) => setCart([...cart, { ...item, cartId: Date.now() + Math.random() }]);
   const removeFromCart = (cartId) => setCart(cart.filter(c => c.cartId !== cartId));
@@ -512,18 +580,6 @@ export default function App() {
   const visibleInventory = posProfile?.role === 'admin' ? inventory : inventory.filter(i => i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
-  // Finanzas Globales Admin
-  const totalBaseCostOwed = salesHistory.reduce((acc, s) => acc + (s.baseCostTotal || 0), 0);
-  const totalSalesRevenue = salesHistory.reduce((acc, s) => acc + (s.saleTotal || 0), 0);
-  const totalCollected = salesHistory.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-  
-  // Ganancia Efectiva (Proporcional a lo cobrado)
-  const totalNetProfit = salesHistory.reduce((acc, s) => {
-    const sSale = s.saleTotal || 0;
-    const ratio = sSale > 0 ? ((s.paidAmount || 0) / sSale) : 0;
-    return acc + ((s.profit || 0) * ratio);
-  }, 0);
-
   // Deudas Agrupadas de Vendedores para el Admin
   const calculateAdminSellerDebt = (sId) => {
     const assignedDebt = assignmentsHistory.filter(a => a.sellerId === sId).reduce((sum, a) => sum + (a.baseCostTotal || 0), 0);
@@ -534,6 +590,9 @@ export default function App() {
 
   const sellerDebts = sellers.map(seller => ({ ...seller, currentDebt: calculateAdminSellerDebt(seller.id) }));
   
+  // Deuda Global (Suma de las deudas de todos los vendedores)
+  const totalGlobalDebt = sellerDebts.reduce((sum, s) => sum + Math.max(0, s.currentDebt || 0), 0);
+
   // Finanzas Vendedor Específico
   const mySales = posProfile?.role === 'seller' ? salesHistory.filter(s => s.sellerId === posProfile.sellerId) : [];
   const myTotalSales = mySales.reduce((acc, s) => acc + (s.saleTotal || 0), 0);
@@ -547,8 +606,6 @@ export default function App() {
   const myBaseCostSold = mySales.reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
   const myTotalPaidToAdmin = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
   const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaidToAdmin) : 0;
-  
-  const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
 
   // --- RENDERIZADOS ---
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white"><IconDiamond /> Cargando...</div>;
@@ -991,38 +1048,58 @@ export default function App() {
               {posProfile.role === 'admin' ? (
                 // PANEL FINANZAS ADMIN
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                      <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ventas Brutas</div>
-                      <div className="text-2xl font-black text-gray-900">Q{(totalSalesRevenue || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-100">
-                      <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total Cobrado</div>
-                      <div className="text-2xl font-black text-blue-700">Q{(totalCollected || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="bg-emerald-50 p-5 rounded-2xl shadow-sm border border-emerald-100">
-                      <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Ganancia Efectiva</div>
-                      <div className="text-2xl font-black text-emerald-700">Q{(totalNetProfit || 0).toFixed(2)}</div>
-                    </div>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                     <div className="text-center md:text-left">
+                        <div className="text-sm font-bold text-gray-500 uppercase mb-1">Deuda Global de Vendedores</div>
+                        <div className="text-4xl font-black text-red-600">Q{(totalGlobalDebt || 0).toFixed(2)}</div>
+                     </div>
+                     <div className="text-xs text-gray-400 font-medium max-w-xs text-center md:text-right">
+                        Esta es la suma total del costo del inventario asignado a todos los vendedores, menos los abonos recibidos.
+                     </div>
                   </div>
                   
                   {/* ADMIN: CONTROL DE DEUDAS DE VENDEDORES */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black">Control: ¿Cuánto te debe cada vendedor?</h2></div>
+                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black">Control por Vendedor</h2></div>
                     <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                       {sellerDebts.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+                        <div key={s.id} className="flex justify-between items-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
                           <div>
-                            <div className="font-bold text-gray-900 mb-1">{s.nombre || 'Sin nombre'}</div>
-                            <button onClick={() => { setSellerToPay(s); setAdminAbonoModalOpen(true); }} className="text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold">Registrar Pago</button>
+                            <div className="font-bold text-gray-900 mb-2 text-lg">{s.nombre || 'Sin nombre'}</div>
+                            <button onClick={() => { setSellerToPay(s); setAdminAbonoModalOpen(true); }} className="text-sm bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-bold shadow-sm transition-colors">Registrar Abono</button>
                           </div>
                           <div className="text-right">
-                            <div className="text-xs text-gray-400 font-bold uppercase">Deuda Pendiente</div>
-                            <div className={`font-black text-xl ${(s.currentDebt || 0) > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{(s.currentDebt || 0).toFixed(2)}</div>
+                            <div className="text-xs text-gray-400 font-bold uppercase mb-1">Saldo Pendiente</div>
+                            <div className={`font-black text-2xl ${(s.currentDebt || 0) > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{(s.currentDebt || 0).toFixed(2)}</div>
                           </div>
                         </div>
                       ))}
                       {sellerDebts.length === 0 && <p className="text-sm text-gray-500">No hay vendedores para mostrar.</p>}
+                    </div>
+                  </div>
+
+                  {/* ADMIN: HISTORIAL DE ABONOS */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+                    <div className="p-5 border-b border-gray-50 bg-gray-50/50">
+                      <h2 className="text-lg font-black text-gray-800">Historial de Abonos</h2>
+                    </div>
+                    <div className="p-5 space-y-3">
+                      {sellerToAdminPayments.filter(p => !p.isAdjustment).map(p => (
+                        <div key={p.id} className="flex justify-between items-center p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                          <div>
+                            <div className="font-black text-gray-800">{p.sellerName}</div>
+                            <div className="text-xs text-gray-500 font-bold">{p.date ? p.date.split(',')[0] : 'Sin fecha'}</div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="font-black text-emerald-600 text-lg">Q{(p.amount || 0).toFixed(2)}</div>
+                            <div className="flex gap-2">
+                               <button onClick={() => { setEditingPayment(p); setEditPaymentAmount(p.amount); }} className="p-2 text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"><IconEdit /></button>
+                               <button onClick={() => handleDeletePayment(p.id)} className="p-2 text-red-600 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"><IconTrash /></button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {sellerToAdminPayments.filter(p => !p.isAdjustment).length === 0 && <p className="text-sm text-gray-500 font-bold">No hay abonos registrados todavía.</p>}
                     </div>
                   </div>
                 </>
@@ -1055,7 +1132,7 @@ export default function App() {
                       <div>
                         <div className="text-xs font-bold text-red-600 uppercase mb-1">Deuda Pendiente al Admin (Costo Mercancía)</div>
                         <div className="text-3xl font-black text-red-700">Q{(myDebtToAdmin || 0).toFixed(2)}</div>
-                        <p className="text-[10px] text-red-500 font-bold mt-1"><IconInfo className="inline w-3 h-3 mr-1"/> Costo de artículos vendidos menos tus abonos.</p>
+                        <p className="text-[10px] text-red-500 font-bold mt-1"><IconInfo className="inline w-3 h-3 mr-1"/> Costo de artículos vendidos menos tus abonos registrados por el admin.</p>
                       </div>
                     </div>
                   </div>
@@ -1170,7 +1247,13 @@ export default function App() {
       {selectedOrderDetails && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b flex justify-between"><h3 className="font-black">Orden: <span className="text-amber-600">{selectedOrderDetails.orderNumber || 'Sin número'}</span></h3><button onClick={() => setSelectedOrderDetails(null)}><IconClose/></button></div>
+            <div className="p-5 border-b flex justify-between items-center">
+              <h3 className="font-black">Orden: <span className="text-amber-600">{selectedOrderDetails.orderNumber || 'Sin número'}</span></h3>
+              <div className="flex items-center gap-2">
+                 <button onClick={() => handlePrint(selectedOrderDetails, 'sale')} className="text-gray-500 hover:text-gray-900 bg-gray-100 p-2 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"><IconPrint /> Imprimir</button>
+                 <button onClick={() => setSelectedOrderDetails(null)} className="p-2"><IconClose/></button>
+              </div>
+            </div>
             <div className="p-6 overflow-y-auto space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div><span className="text-gray-400 text-[10px] font-bold uppercase">Cliente</span> <div className="font-black text-gray-800">{selectedOrderDetails.customerName || 'Cliente'}</div></div>
@@ -1212,9 +1295,12 @@ export default function App() {
       {selectedAssignmentDetails && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b flex justify-between bg-blue-50 rounded-t-3xl">
+            <div className="p-5 border-b flex justify-between items-center bg-blue-50 rounded-t-3xl">
                <h3 className="font-black text-blue-900">Asignación: <span className="text-blue-600">{selectedAssignmentDetails.assignmentNumber || 'Sin número'}</span></h3>
-               <button onClick={() => setSelectedAssignmentDetails(null)} className="text-blue-600"><IconClose/></button>
+               <div className="flex items-center gap-2">
+                 <button onClick={() => handlePrint(selectedAssignmentDetails, 'assignment')} className="text-blue-700 hover:text-blue-900 bg-blue-100/50 hover:bg-blue-200 p-2 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"><IconPrint /> Imprimir</button>
+                 <button onClick={() => setSelectedAssignmentDetails(null)} className="text-blue-600 p-2"><IconClose/></button>
+               </div>
             </div>
             <div className="p-6 overflow-y-auto space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
@@ -1289,7 +1375,7 @@ export default function App() {
             <form onSubmit={processAbonoAdmin} className="space-y-4">
               <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{(sellerToPay.currentDebt || 0).toFixed(2)}</b></div>
               <input type="number" step="0.01" value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null);}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button></div>
+              <div className="flex gap-3 pt-4"><button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null); setAdminAbonoAmount('');}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button></div>
             </form>
           </div>
         </div>
