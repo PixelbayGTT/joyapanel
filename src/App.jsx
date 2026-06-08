@@ -34,13 +34,13 @@ const IconHistory = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" hei
 const IconWallet = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
 const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
 const IconImage = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
-const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
-const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>;
+const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
+const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>;
 const IconCart = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>;
 const IconClose = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
 const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
 
-// --- COMPONENTE TARJETA DE VENTAS ---
+// --- COMPONENTE TARJETA DE VENTAS (MÁS PEQUEÑO) ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
   const suggestedPrice = item.weight * 80;
   const [currentPrice, setCurrentPrice] = useState(suggestedPrice);
@@ -50,20 +50,17 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
   const availableQty = item.quantity - cartQty;
   const difference = currentPrice - suggestedPrice;
   
-  let priceMessage = "Precio sugerido";
   let messageColor = "text-gray-500 bg-gray-100";
 
   if (difference < -0.01) {
-    priceMessage = `Descuento: Q${Math.abs(difference).toFixed(2)}`;
     messageColor = "text-red-700 bg-red-100 border-red-200";
   } else if (difference > 0.01) {
-    priceMessage = `Ganancia extra: Q${difference.toFixed(2)}`;
     messageColor = "text-emerald-700 bg-emerald-100 border-emerald-200";
   }
 
   const handleAdd = () => {
     if (sellQuantity > availableQty || sellQuantity <= 0) {
-      setErrorMsg("Cantidad inválida");
+      setErrorMsg("Error");
       setTimeout(() => setErrorMsg(''), 2000);
       return;
     }
@@ -76,7 +73,6 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
       baseCostTotal: (item.weight * 40) * sellQuantity,
       saleTotal: currentPrice * sellQuantity,
       profit: (currentPrice * sellQuantity) - ((item.weight * 40) * sellQuantity),
-      priceMessage,
       difference
     });
     setSellQuantity(1);
@@ -84,38 +80,35 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-      <div className="h-40 w-full bg-gray-50 relative">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+      <div className="h-28 w-full bg-gray-50 relative">
         {item.image ? (
           <img src={item.image} alt={item.description} className="w-full h-full object-cover" />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400"><IconImage /></div>
         )}
-        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-bold text-gray-700 shadow-sm">
+        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-gray-700 shadow-sm">
           Stock: {availableQty}
         </div>
       </div>
-      <div className="p-4 flex-grow flex flex-col">
-        <h3 className="font-bold text-gray-800 text-base mb-1 truncate">{item.description}</h3>
-        <p className="text-gray-500 text-xs mb-3">Peso: {item.weight}g</p>
-        <div className="mt-auto space-y-3">
+      <div className="p-3 flex-grow flex flex-col">
+        <h3 className="font-bold text-gray-800 text-sm mb-0.5 line-clamp-1">{item.description}</h3>
+        <p className="text-gray-500 text-[10px] mb-2 font-medium">Peso: {item.weight}g</p>
+        <div className="mt-auto space-y-2">
           <div>
-            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Precio Venta (Q)</label>
-            <input type="number" value={currentPrice} onChange={(e) => setCurrentPrice(Number(e.target.value))} className="w-full px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-bold" step="0.01" />
+            <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Precio Venta (Q)</label>
+            <input type="number" value={currentPrice} onChange={(e) => setCurrentPrice(Number(e.target.value))} className={`w-full px-2 py-1 text-xs border rounded focus:ring-1 outline-none font-bold ${messageColor}`} step="0.01" />
           </div>
-          <div className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold text-center ${messageColor}`}>
-            {priceMessage}
-          </div>
-          <div className="flex gap-2 items-end">
+          <div className="flex gap-1.5 items-end">
             <div className="w-1/3">
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Cant.</label>
-              <input type="number" min="1" max={availableQty} value={sellQuantity} onChange={(e) => setSellQuantity(Number(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-center" />
+              <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Cant.</label>
+              <input type="number" min="1" max={availableQty} value={sellQuantity} onChange={(e) => setSellQuantity(Number(e.target.value))} className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none text-center" />
             </div>
-            <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-1.5 px-2 rounded-lg font-bold text-sm transition-all shadow-sm ${availableQty === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white'}`}>
+            <button onClick={handleAdd} disabled={availableQty === 0} className={`w-2/3 py-1 px-1 rounded font-bold text-xs transition-all shadow-sm ${availableQty === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-white'}`}>
               {availableQty === 0 ? 'Agotado' : 'Añadir'}
             </button>
           </div>
-          {errorMsg && <div className="text-center text-xs text-red-600 font-bold animate-pulse">{errorMsg}</div>}
+          {errorMsg && <div className="text-center text-[10px] text-red-600 font-bold animate-pulse">{errorMsg}</div>}
         </div>
       </div>
     </div>
@@ -127,39 +120,36 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [firebaseUser, setFirebaseUser] = useState(null);
   
-  // Perfil del Usuario Actual { role: 'admin'|'seller', adminUid, sellerId?, nombre }
   const [posProfile, setPosProfile] = useState(null);
   
-  // Estados de Pantalla de Login
-  const [loginMode, setLoginMode] = useState('select'); // select, admin, seller
+  // Estados Login
+  const [loginMode, setLoginMode] = useState('select');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [sellerPinInput, setSellerPinInput] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Estados de Navegación del Panel
+  // Navegación
   const [activeTab, setActiveTab] = useState('sales');
 
-  // Datos Globales de Firestore
+  // Datos Firestore
   const [inventory, setInventory] = useState([]);
   const [salesHistory, setSalesHistory] = useState([]);
   const [sellers, setSellers] = useState([]);
-  const [providerPayments, setProviderPayments] = useState([]);
   const [sellerToAdminPayments, setSellerToAdminPayments] = useState([]);
 
-  // Estados Formularios
+  // Estados Formularios Inventario/Vendedores
   const [newDesc, setNewDesc] = useState('');
   const [newWeight, setNewWeight] = useState('');
   const [newQty, setNewQty] = useState('');
   const [newImage, setNewImage] = useState('');
   const [assignTo, setAssignTo] = useState('general');
   const [editingItem, setEditingItem] = useState(null);
-
   const [newSellerName, setNewSellerName] = useState('');
   const [newSellerCode, setNewSellerCode] = useState('');
 
-  // Estados Carrito
+  // Carrito
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
@@ -168,10 +158,8 @@ export default function App() {
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [initialPayment, setInitialPayment] = useState('');
 
-  // Modal de Confirmación Global
+  // Modales y Acciones
   const [confirmDialog, setConfirmDialog] = useState(null);
-
-  // Estados Modales Acciones
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   
   const [abonoModalOpen, setAbonoModalOpen] = useState(false);
@@ -179,29 +167,26 @@ export default function App() {
   const [abonoAmount, setAbonoAmount] = useState('');
   const [abonoMethod, setAbonoMethod] = useState('Efectivo');
 
-  // Edición de Orden
   const [editingOrder, setEditingOrder] = useState(null);
   const [editCustomerName, setEditCustomerName] = useState('');
   const [editCustomerPhone, setEditCustomerPhone] = useState('');
   const [editPaidAmount, setEditPaidAmount] = useState('');
 
-  // Finanzas y Pagos Admin
-  const [providerModalOpen, setProviderModalOpen] = useState(false);
-  const [providerPaymentAmount, setProviderPaymentAmount] = useState('');
-
+  // Finanzas y Pagos
   const [adminAbonoModalOpen, setAdminAbonoModalOpen] = useState(false);
   const [adminAbonoAmount, setAdminAbonoAmount] = useState('');
   const [sellerToPay, setSellerToPay] = useState(null);
+  
+  // Edición/Borrado de Historial de Pagos
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState('');
 
-  // Funciones Utilitarias Base de Datos
   const getColRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
   const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-  const confirmAction = (message, action) => {
-    setConfirmDialog({ message, onConfirm: action });
-  };
+  const confirmAction = (message, action) => setConfirmDialog({ message, onConfirm: action });
 
-  // --- 1. MANEJO DE SESIÓN Y PERSISTENCIA ---
+  // --- 1. MANEJO DE SESIÓN ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -229,30 +214,23 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- 2. CARGA DE DATOS DESDE FIRESTORE ---
+  // --- 2. CARGA DE DATOS ---
   useEffect(() => {
     if (!posProfile || !firebaseUser) return;
     
     const adminRefUid = posProfile.adminUid;
-    const errorHandler = (err) => {
-      console.error("Firestore Snapshot Error:", err);
-      if (err.code === 'permission-denied') {
-        alert("Error de permisos en la base de datos. Revisa las reglas de Firestore.");
-      }
-    };
-
+    const errorHandler = (err) => console.error("Firestore Error:", err);
     const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
 
     const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
     const unsubSales = onSnapshot(getColRef('sales'), (snap) => setSalesHistory(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
     const unsubSell = onSnapshot(getColRef('vendedores'), (snap) => setSellers(filterByAdmin(snap)), errorHandler);
-    const unsubProv = onSnapshot(getColRef('providerPayments'), (snap) => setProviderPayments(filterByAdmin(snap)), errorHandler);
-    const unsubSellerPays = onSnapshot(getColRef('sellerPayments'), (snap) => setSellerToAdminPayments(filterByAdmin(snap)), errorHandler);
+    const unsubSellerPays = onSnapshot(getColRef('sellerPayments'), (snap) => setSellerToAdminPayments(filterByAdmin(snap).sort((a,b) => b.timestamp - a.timestamp)), errorHandler);
 
-    return () => { unsubInv(); unsubSales(); unsubSell(); unsubProv(); unsubSellerPays(); };
+    return () => { unsubInv(); unsubSales(); unsubSell(); unsubSellerPays(); };
   }, [posProfile, firebaseUser]);
 
-  // --- 3. LÓGICA DE LOGIN ---
+  // --- 3. LOGIN ---
   const handleAdminLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
@@ -267,26 +245,20 @@ export default function App() {
       localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
       setActiveTab('inventory');
     } catch (error) {
-      console.error("Auth error:", error);
-      if (error.code === 'auth/email-already-in-use') {
-         setAuthError("El correo ya está registrado.");
-      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-         setAuthError("Credenciales incorrectas.");
-      } else if (error.code === 'auth/operation-not-allowed') {
-         setAuthError("El inicio por correo no está habilitado en tu consola de Firebase.");
-      } else {
-         setAuthError("Error al iniciar sesión. Revisa la consola.");
-      }
+      setAuthError("Credenciales incorrectas o correo ya registrado.");
     }
   };
 
   const handleSellerLogin = async (e) => {
     e.preventDefault(); setAuthError('');
+    
+    // Asegurarnos de que el usuario de Firebase esté listo antes de consultar
+    if (!firebaseUser && !auth.currentUser) {
+       try { await signInAnonymously(auth); } 
+       catch(e) { console.error(e); }
+    }
+
     try {
-      if (!auth.currentUser) {
-        await signInAnonymously(auth);
-      }
-      
       const globalPinRef = doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput);
       const pinSnap = await getDoc(globalPinRef);
 
@@ -297,15 +269,11 @@ export default function App() {
         localStorage.setItem('joyapanel_profile', JSON.stringify(profile));
         setActiveTab('sales');
       } else {
-        setAuthError("El PIN ingresado no es válido o no existe.");
+        setAuthError("El PIN ingresado no existe.");
       }
     } catch (error) {
-      console.error("Seller Login Error:", error);
-      if (error.code === 'permission-denied') {
-        setAuthError("Acceso denegado a la base de datos.");
-      } else {
-        setAuthError("Error de conexión. Intenta de nuevo.");
-      }
+      console.error(error);
+      setAuthError("Error de conexión, intenta nuevamente.");
     }
   };
 
@@ -317,29 +285,18 @@ export default function App() {
 
   // --- 4. LÓGICA DEL SISTEMA ---
   
-  // ADMIN: VENDEDORES
+  // Vendedores
   const handleAddSeller = async (e) => {
     e.preventDefault();
     try {
-      const sellerDoc = await addDoc(getColRef('vendedores'), {
-        adminUid: posProfile.adminUid,
-        nombre: newSellerName,
-        pin: newSellerCode,
-        createdAt: Date.now()
-      });
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', newSellerCode), {
-        adminUid: posProfile.adminUid,
-        sellerId: sellerDoc.id,
-        nombre: newSellerName
-      });
+      const sellerDoc = await addDoc(getColRef('vendedores'), { adminUid: posProfile.adminUid, nombre: newSellerName, pin: newSellerCode, createdAt: Date.now() });
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', newSellerCode), { adminUid: posProfile.adminUid, sellerId: sellerDoc.id, nombre: newSellerName });
       setNewSellerName(''); setNewSellerCode('');
-    } catch (error) {
-      console.error("Error al crear vendedor:", error);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const deleteSeller = (id, pin) => {
-    confirmAction("¿Seguro que deseas eliminar este vendedor?", async () => {
+    confirmAction("¿Eliminar este vendedor?", async () => {
       try {
         await deleteDoc(getDocRef('vendedores', id));
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', pin));
@@ -347,14 +304,13 @@ export default function App() {
     });
   };
 
-  // ADMIN: INVENTARIO
+  // Inventario
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (!newDesc || !newWeight || !newQty) return;
     try {
       await addDoc(getColRef('inventory'), {
-        adminUid: posProfile.adminUid,
-        description: newDesc, weight: Number(newWeight), quantity: Number(newQty), image: newImage.trim(),
+        adminUid: posProfile.adminUid, description: newDesc, weight: Number(newWeight), quantity: Number(newQty), image: newImage.trim(),
         cost: Number(newWeight) * 40, assignedTo: assignTo, timestamp: Date.now()
       });
       setNewDesc(''); setNewWeight(''); setNewQty(''); setNewImage(''); setAssignTo('general');
@@ -365,30 +321,17 @@ export default function App() {
     e.preventDefault();
     try {
       await updateDoc(getDocRef('inventory', editingItem.id), {
-        description: editingItem.description,
-        weight: Number(editingItem.weight),
-        quantity: Number(editingItem.quantity),
-        image: editingItem.image,
-        cost: Number(editingItem.weight) * 40,
-        assignedTo: editingItem.assignedTo || 'general'
+        description: editingItem.description, weight: Number(editingItem.weight), quantity: Number(editingItem.quantity),
+        image: editingItem.image, cost: Number(editingItem.weight) * 40, assignedTo: editingItem.assignedTo || 'general'
       });
       setEditingItem(null);
     } catch(err) { console.error(err); }
   };
 
-  const deleteItem = (id) => {
-    confirmAction("¿Eliminar esta joya del inventario?", async () => {
-      try {
-        await deleteDoc(getDocRef('inventory', id));
-      } catch(err) { console.error(err); }
-    });
-  };
+  const deleteItem = (id) => confirmAction("¿Eliminar esta joya?", async () => deleteDoc(getDocRef('inventory', id)));
 
-  // VENTAS Y CARRITO
-  const handleAddToCart = (item) => {
-    const newCartItem = { ...item, cartId: Date.now() + Math.random() };
-    setCart([...cart, newCartItem]);
-  };
+  // Ventas y Carrito
+  const handleAddToCart = (item) => setCart([...cart, { ...item, cartId: Date.now() + Math.random() }]);
   const removeFromCart = (cartId) => setCart(cart.filter(c => c.cartId !== cartId));
 
   const processCheckout = async (e) => {
@@ -401,20 +344,17 @@ export default function App() {
     const balance = cartTotal - paymentAmount;
     
     const newOrder = {
-      adminUid: posProfile.adminUid,
-      orderNumber: `JOY-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminUid: posProfile.adminUid, orderNumber: `JOY-${Math.floor(10000 + Math.random() * 90000)}`,
       customerName, customerPhone, items: cart, saleTotal: cartTotal, baseCostTotal,
       profit: cartTotal - baseCostTotal, paidAmount: paymentAmount, balance,
       status: balance <= 0 ? 'Pagada' : 'Pendiente',
       sellerId: posProfile.role === 'seller' ? posProfile.sellerId : 'admin',
-      sellerName: posProfile.nombre,
-      date: new Date().toLocaleString(), timestamp: Date.now(),
+      sellerName: posProfile.nombre, date: new Date().toLocaleString(), timestamp: Date.now(),
       payments: paymentAmount > 0 ? [{ id: Date.now(), date: new Date().toLocaleString(), amount: paymentAmount, method: paymentMethod, type: 'Inicial' }] : []
     };
 
     try {
       await addDoc(getColRef('sales'), newOrder);
-
       for (const cItem of cart) {
         const invItem = inventory.find(i => i.id === cItem.inventoryId);
         if (invItem) await updateDoc(getDocRef('inventory', invItem.id), { quantity: invItem.quantity - cItem.quantity });
@@ -425,16 +365,14 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
-  // HISTORIAL: EDITAR / ELIMINAR ORDEN
+  // Historial: Editar / Eliminar Orden
   const handleDeleteOrder = (order) => {
     confirmAction("¿Seguro que deseas eliminar esta orden? El inventario será restaurado.", async () => {
       try {
         for (const item of order.items) {
           const invDocRef = getDocRef('inventory', item.inventoryId);
           const invSnap = await getDoc(invDocRef);
-          if(invSnap.exists()) {
-            await updateDoc(invDocRef, { quantity: invSnap.data().quantity + item.quantity });
-          }
+          if(invSnap.exists()) await updateDoc(invDocRef, { quantity: invSnap.data().quantity + item.quantity });
         }
         await deleteDoc(getDocRef('sales', order.id));
         setSelectedOrderDetails(null);
@@ -446,16 +384,11 @@ export default function App() {
     e.preventDefault();
     const newPaidAmount = Number(editPaidAmount);
     if(newPaidAmount > editingOrder.saleTotal) return;
-
     const newBalance = editingOrder.saleTotal - newPaidAmount;
-    
     try {
       await updateDoc(getDocRef('sales', editingOrder.id), {
-        customerName: editCustomerName,
-        customerPhone: editCustomerPhone,
-        paidAmount: newPaidAmount,
-        balance: newBalance,
-        status: newBalance <= 0 ? 'Pagada' : 'Pendiente'
+        customerName: editCustomerName, customerPhone: editCustomerPhone,
+        paidAmount: newPaidAmount, balance: newBalance, status: newBalance <= 0 ? 'Pagada' : 'Pendiente'
       });
       setEditingOrder(null);
     } catch(err) { console.error(err); }
@@ -467,71 +400,82 @@ export default function App() {
     if (amount <= 0 || amount > abonoOrder.balance) return;
     const newPaidAmount = abonoOrder.paidAmount + amount;
     const newBalance = abonoOrder.saleTotal - newPaidAmount;
-    
     try {
       await updateDoc(getDocRef('sales', abonoOrder.id), {
-        paidAmount: newPaidAmount, balance: newBalance,
-        status: newBalance <= 0 ? 'Pagada' : 'Pendiente',
+        paidAmount: newPaidAmount, balance: newBalance, status: newBalance <= 0 ? 'Pagada' : 'Pendiente',
         payments: [...(abonoOrder.payments||[]), { id: Date.now(), date: new Date().toLocaleString(), amount, method: abonoMethod, type: 'Abono' }]
       });
       setAbonoModalOpen(false); setAbonoAmount(''); setAbonoOrder(null);
     } catch(err) { console.error(err); }
   };
 
-  // FINANZAS PAGOS
-  const processAbonoProveedor = async (e) => {
-    e.preventDefault();
-    try {
-      await addDoc(getColRef('providerPayments'), { adminUid: posProfile.adminUid, amount: Number(providerPaymentAmount), date: new Date().toLocaleString(), timestamp: Date.now() });
-      setProviderModalOpen(false); setProviderPaymentAmount('');
-    } catch(err) { console.error(err); }
-  };
-
+  // --- FINANZAS Y ABONOS VENDEDOR-ADMIN ---
+  
+  // Procesar nuevo abono
   const processAbonoAdmin = async (e) => {
     e.preventDefault();
     try {
       await addDoc(getColRef('sellerPayments'), {
-        adminUid: posProfile.adminUid, sellerId: sellerToPay.id, amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
+        adminUid: posProfile.adminUid, sellerId: sellerToPay.id, sellerName: sellerToPay.nombre,
+        amount: Number(adminAbonoAmount), date: new Date().toLocaleString(), timestamp: Date.now()
       });
       setAdminAbonoModalOpen(false); setAdminAbonoAmount(''); setSellerToPay(null);
     } catch(err) { console.error(err); }
   };
 
-  // --- 5. CÁLCULOS FINANCIEROS Y FILTROS ---
+  // Editar abono existente
+  const handleEditPaymentSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await updateDoc(getDocRef('sellerPayments', editingPayment.id), { amount: Number(editPaymentAmount) });
+      setEditingPayment(null); setEditPaymentAmount('');
+    } catch(err) { console.error(err); }
+  };
+
+  // Eliminar abono
+  const handleDeletePayment = (paymentId) => {
+    confirmAction("¿Eliminar este abono del historial?", async () => {
+       await deleteDoc(getDocRef('sellerPayments', paymentId));
+    });
+  };
+
+  // --- CÁLCULOS FINANCIEROS Y DE DEUDA ---
   const cartTotal = cart.reduce((sum, item) => sum + item.saleTotal, 0);
   
-  // Filtros de Vista
   const visibleInventory = posProfile?.role === 'admin' 
     ? inventory : inventory.filter(i => i.assignedTo === 'general' || i.assignedTo === posProfile?.sellerId);
   const visibleHistory = posProfile?.role === 'admin'
     ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
 
-  // Finanzas Admin
-  const totalBaseCostOwed = salesHistory.reduce((acc, s) => acc + s.baseCostTotal, 0);
-  const totalProviderPaid = providerPayments.reduce((acc, p) => acc + p.amount, 0);
-  const currentProviderDebt = totalBaseCostOwed - totalProviderPaid;
-  const totalSalesRevenue = salesHistory.reduce((acc, s) => acc + s.saleTotal, 0);
-  const totalNetProfit = salesHistory.reduce((acc, s) => acc + s.profit, 0);
+  // Función Central de Deuda para Vendedores
+  const calculateSellerDebt = (sId) => {
+    // 1. Costo Base del inventario que tiene ACTULAMENTE asignado y no ha vendido
+    const currentInventoryDebt = inventory.filter(i => i.assignedTo === sId).reduce((sum, i) => sum + (i.weight * 40 * i.quantity), 0);
+    // 2. Costo Base de lo que YA VENDIÓ
+    const soldDebt = salesHistory.filter(s => s.sellerId === sId).reduce((sum, s) => sum + s.baseCostTotal, 0);
+    // 3. Pagos realizados al Admin
+    const totalPaid = sellerToAdminPayments.filter(p => p.sellerId === sId).reduce((sum, p) => sum + p.amount, 0);
+    
+    return (currentInventoryDebt + soldDebt) - totalPaid;
+  };
 
-  // Finanzas Vendedor Específico
-  const mySales = posProfile?.role === 'seller' ? salesHistory.filter(s => s.sellerId === posProfile.sellerId) : [];
-  const myNetProfit = mySales.reduce((acc, s) => acc + s.profit, 0);
-  const myTotalCostOwed = mySales.reduce((acc, s) => acc + s.baseCostTotal, 0);
-  const myTotalPaidToAdmin = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId).reduce((acc, p) => acc + p.amount, 0);
-  const myDebtToAdmin = myTotalCostOwed - myTotalPaidToAdmin;
+  // Deuda específica de cada vendedor para el listado del Admin
+  const sellerDebts = sellers.map(seller => ({
+    ...seller,
+    currentDebt: calculateSellerDebt(seller.id)
+  }));
 
-  // Finanzas Agrupadas para el Admin
-  const sellerDebts = sellers.map(seller => {
-    const sSales = salesHistory.filter(s => s.sellerId === seller.id);
-    const sDebt = sSales.reduce((sum, s) => sum + s.baseCostTotal, 0);
-    const sPaid = sellerToAdminPayments.filter(p => p.sellerId === seller.id).reduce((sum, p) => sum + p.amount, 0);
-    return { ...seller, currentDebt: sDebt - sPaid };
-  });
+  // Deuda total global de todos los vendedores
+  const totalSellersDebt = sellerDebts.reduce((sum, s) => sum + s.currentDebt, 0);
+
+  // Deuda específica para el panel individual del Vendedor
+  const myDebtToAdmin = posProfile?.role === 'seller' ? calculateSellerDebt(posProfile.sellerId) : 0;
+  const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
 
   // --- RENDERIZADOS ---
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white"><IconDiamond /> Cargando...</div>;
 
-  // PANTALLA DE LOGIN
+  // LOGIN
   if (!posProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -576,7 +520,7 @@ export default function App() {
     );
   }
 
-  // DASHBOARD PRINCIPAL (Con sesión iniciada)
+  // DASHBOARD PRINCIPAL
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20 md:pb-0">
       <header className="bg-white shadow-sm sticky top-0 z-30 border-b border-gray-200">
@@ -611,10 +555,9 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
         <div className={`flex-1 ${activeTab === 'sales' && isCartOpen ? 'hidden md:block' : 'block'}`}>
           
-          {/* TAB: INVENTARIO (Admin y Vendedor) */}
+          {/* TAB: INVENTARIO */}
           {activeTab === 'inventory' && (
             <div className="space-y-6">
-              {/* Formulario de Creación SOLO para Admin */}
               {posProfile.role === 'admin' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
                   <h2 className="text-lg font-black mb-4">Registrar Joya</h2>
@@ -634,12 +577,21 @@ export default function App() {
                 </div>
               )}
 
-              {/* Tabla de Inventario */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-4 border-b border-gray-50 bg-gray-50/50"><h3 className="font-bold text-gray-800">Mi Inventario Asignado</h3></div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse whitespace-nowrap">
-                    <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Joya</th>{posProfile.role === 'admin' && <th className="p-4 font-bold border-b">Asignado</th>}<th className="p-4 font-bold border-b">Stock</th><th className="p-4 font-bold border-b">Peso</th>{posProfile.role === 'admin' && <th className="p-4 font-bold border-b text-right">Acciones</th>}</tr></thead>
+                    <thead>
+                      <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                        <th className="p-4 font-bold border-b">Joya</th>
+                        {posProfile.role === 'admin' && <th className="p-4 font-bold border-b">Asignado</th>}
+                        <th className="p-4 font-bold border-b">Stock</th>
+                        <th className="p-4 font-bold border-b">Peso</th>
+                        <th className="p-4 font-bold border-b text-amber-600">Costo Base (Un)</th>
+                        <th className="p-4 font-bold border-b text-emerald-600">Precio Sug.</th>
+                        {posProfile.role === 'admin' && <th className="p-4 font-bold border-b text-right">Acciones</th>}
+                      </tr>
+                    </thead>
                     <tbody className="divide-y divide-gray-50 text-sm">
                       {visibleInventory.map(item => (
                         <tr key={item.id} className="hover:bg-gray-50/50">
@@ -650,6 +602,8 @@ export default function App() {
                           {posProfile.role === 'admin' && <td className="p-4"><span className="px-2 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-600">{item.assignedTo === 'general' ? 'General' : sellers.find(s=>s.id===item.assignedTo)?.nombre || 'Desconocido'}</span></td>}
                           <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-black ${item.quantity>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{item.quantity}</span></td>
                           <td className="p-4 font-medium">{item.weight}g</td>
+                          <td className="p-4 font-bold text-gray-600">Q{(item.weight * 40).toFixed(2)}</td>
+                          <td className="p-4 font-bold text-emerald-600">Q{(item.weight * 80).toFixed(2)}</td>
                           {posProfile.role === 'admin' && (
                             <td className="p-4 flex justify-end gap-2">
                               <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 bg-blue-50 rounded-lg"><IconEdit /></button>
@@ -658,7 +612,7 @@ export default function App() {
                           )}
                         </tr>
                       ))}
-                      {visibleInventory.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-gray-500">No hay inventario disponible.</td></tr>}
+                      {visibleInventory.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-gray-500">No hay inventario disponible.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -701,23 +655,24 @@ export default function App() {
           {/* TAB: VENTAS */}
           {activeTab === 'sales' && (
             <div>
-              <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-2xl font-black text-gray-900 mb-1">Punto de Venta</h2>
+              <div className="mb-4 flex justify-between items-center">
+                <h2 className="text-xl font-black text-gray-900 mb-1">Punto de Venta</h2>
                 <button onClick={() => setIsCartOpen(!isCartOpen)} className="hidden md:flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold">
                   <IconCart /> Ver Carrito {cart.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-xs">{cart.length}</span>}
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {/* Cuadrícula más pequeña y compacta */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {visibleInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+b.quantity, 0)} />)}
-                {visibleInventory.length === 0 && <div className="col-span-3 text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
+                {visibleInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
               </div>
             </div>
           )}
 
-          {/* TAB: HISTORIAL */}
+          {/* TAB: HISTORIAL (ÓRDENES DE VENTA) */}
           {activeTab === 'history' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-5 border-b border-gray-100"><h2 className="text-lg font-black text-gray-900">Historial de Órdenes</h2></div>
+              <div className="p-5 border-b border-gray-100"><h2 className="text-lg font-black text-gray-900">Historial de Órdenes de Venta</h2></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse whitespace-nowrap">
                   <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Orden</th><th className="p-4 font-bold border-b">Total</th><th className="p-4 font-bold border-b">Saldo</th><th className="p-4 font-bold border-b">Estado</th><th className="p-4 font-bold border-b text-right">Acciones</th></tr></thead>
@@ -745,66 +700,99 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: FINANZAS */}
+          {/* TAB: FINANZAS (ADMIN Y VENDEDOR) */}
           {activeTab === 'finance' && (
             <div className="space-y-6">
               {posProfile.role === 'admin' ? (
                 // PANEL FINANZAS ADMIN
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                      <div className="text-xs font-bold text-gray-400 uppercase mb-2">Ingresos Totales (Ventas)</div>
-                      <div className="text-3xl font-black text-gray-900">Q{totalSalesRevenue.toFixed(2)}</div>
-                    </div>
-                    <div className="bg-gray-900 p-6 rounded-2xl shadow-md border text-white relative">
-                      <div className="text-xs font-bold text-gray-400 uppercase mb-2">Deuda Proveedor (Costo Global)</div>
-                      <div className="text-3xl font-black">Q{currentProviderDebt.toFixed(2)}</div>
-                      <button onClick={() => setProviderModalOpen(true)} className="absolute right-4 top-1/2 -translate-y-1/2 bg-amber-500 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm">Abonar</button>
-                    </div>
-                    <div className="bg-emerald-50 p-6 rounded-2xl shadow-sm border border-emerald-100">
-                      <div className="text-xs font-bold text-emerald-600 uppercase mb-2">Ganancia Neta Calc.</div>
-                      <div className="text-3xl font-black text-emerald-700">Q{totalNetProfit.toFixed(2)}</div>
+                  <div className="bg-gray-900 p-6 sm:p-8 rounded-3xl shadow-xl border text-white relative flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                      <div className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2"><IconWallet/> Deuda Total de Vendedores</div>
+                      <div className="text-5xl font-black">Q{totalSellersDebt.toFixed(2)}</div>
+                      <p className="text-xs text-gray-400 mt-2 font-medium">Suma de inventario asignado + ventas realizadas - abonos recibidos</p>
                     </div>
                   </div>
                   
-                  {/* ADMIN: CONTROL DE DEUDAS DE VENDEDORES */}
+                  {/* ADMIN: CONTROL DE DEUDAS Y BOTONES DE PAGO */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black">Control: ¿Cuánto te debe cada vendedor?</h2></div>
-                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Desglose de Deudas por Vendedor</h2></div>
+                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {sellerDebts.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-                          <div>
-                            <div className="font-bold text-gray-900 mb-1">{s.nombre}</div>
-                            <button onClick={() => { setSellerToPay(s); setAdminAbonoModalOpen(true); }} className="text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold">Registrar Pago</button>
+                        <div key={s.id} className="flex flex-col justify-between p-5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start mb-4">
+                             <div className="font-black text-gray-900 text-lg">{s.nombre}</div>
+                             <div className="text-right">
+                               <div className="text-[10px] text-gray-400 font-bold uppercase">Deuda</div>
+                               <div className={`font-black text-xl ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
+                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="text-xs text-gray-400 font-bold uppercase">Deuda Pendiente</div>
-                            <div className={`font-black text-xl ${s.currentDebt > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Q{s.currentDebt.toFixed(2)}</div>
-                          </div>
+                          <button onClick={() => { setSellerToPay(s); setAdminAbonoModalOpen(true); }} className="w-full text-sm bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-xl font-bold transition-colors">
+                            Registrar Abono
+                          </button>
                         </div>
                       ))}
-                      {sellerDebts.length === 0 && <p className="text-sm text-gray-500">No hay vendedores para mostrar.</p>}
+                      {sellerDebts.length === 0 && <p className="text-sm text-gray-500 col-span-full">No hay vendedores creados.</p>}
+                    </div>
+                  </div>
+
+                  {/* ADMIN: HISTORIAL GLOBAL DE ABONOS */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Historial Global de Abonos</h2></div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse whitespace-nowrap">
+                        <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Fecha</th><th className="p-4 font-bold border-b">Vendedor</th><th className="p-4 font-bold border-b">Monto Abonado</th><th className="p-4 font-bold border-b text-right">Acciones</th></tr></thead>
+                        <tbody className="divide-y divide-gray-50 text-sm">
+                           {sellerToAdminPayments.map(p => (
+                             <tr key={p.id} className="hover:bg-gray-50/50">
+                                <td className="p-4 font-medium text-gray-600">{p.date.split(',')[0]}</td>
+                                <td className="p-4 font-bold text-gray-900">{p.sellerName || 'Desconocido'}</td>
+                                <td className="p-4 font-black text-emerald-600">Q{p.amount.toFixed(2)}</td>
+                                <td className="p-4 flex items-center justify-end gap-2">
+                                  <button onClick={() => { setEditingPayment(p); setEditPaymentAmount(p.amount); }} className="text-xs font-bold border bg-gray-50 px-3 py-1.5 rounded-lg text-gray-700 hover:bg-gray-100">Editar</button>
+                                  <button onClick={() => handleDeletePayment(p.id)} className="text-xs font-bold border bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100"><IconTrash/></button>
+                                </td>
+                             </tr>
+                           ))}
+                           {sellerToAdminPayments.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-gray-500">No hay abonos registrados.</td></tr>}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </>
               ) : (
-                // PANEL FINANZAS VENDEDOR (SOLO LECTURA)
+                // PANEL FINANZAS VENDEDOR
                 <>
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
                     <div className="p-6 border-b border-gray-50 bg-gray-50/50">
-                      <h2 className="text-xl font-black text-gray-900">Resumen de mi Gestión</h2>
-                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tus ingresos y deudas directamente sincronizadas con el Administrador.</p>
+                      <h2 className="text-xl font-black text-gray-900">Resumen de Cuenta</h2>
+                      <p className="text-sm text-gray-500 mt-1">Este panel refleja tu deuda general (inventario actual en tus manos + ventas) y los abonos que has realizado.</p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 p-6 gap-6">
-                      <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
-                        <div className="text-xs font-bold text-emerald-600 uppercase mb-2">Mi Ganancia Neta Generada</div>
-                        <div className="text-4xl font-black text-emerald-700">Q{myNetProfit.toFixed(2)}</div>
+                    <div className="p-6">
+                      <div className="bg-red-50 p-6 sm:p-8 rounded-3xl border border-red-200 text-center sm:text-left">
+                        <div className="text-sm font-bold text-red-600 uppercase mb-2">Deuda Pendiente al Administrador</div>
+                        <div className="text-5xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
+                        <p className="text-xs text-red-500 font-bold mt-4 flex items-center justify-center sm:justify-start gap-1"><IconInfo/> Calculado sobre el costo base de tu inventario y ventas.</p>
                       </div>
-                      <div className="bg-red-50 p-6 rounded-2xl border border-red-200">
-                        <div className="text-xs font-bold text-red-600 uppercase mb-2">Deuda Pendiente al Administrador</div>
-                        <div className="text-4xl font-black text-red-700">Q{myDebtToAdmin.toFixed(2)}</div>
-                        <p className="text-xs text-red-500 font-bold mt-2"><IconInfo/> Esta cantidad es calculada en base al costo de los artículos vendidos.</p>
-                      </div>
+                    </div>
+                  </div>
+
+                  {/* VENDEDOR: SU PROPIO HISTORIAL DE ABONOS */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="p-5 border-b border-gray-50 bg-gray-50/50"><h2 className="text-lg font-black text-gray-800">Mis Abonos Realizados</h2></div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse whitespace-nowrap">
+                        <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider"><th className="p-4 font-bold border-b">Fecha de Registro</th><th className="p-4 font-bold border-b">Monto Abonado</th></tr></thead>
+                        <tbody className="divide-y divide-gray-50 text-sm">
+                           {myPaymentsHistory.map(p => (
+                             <tr key={p.id} className="hover:bg-gray-50/50">
+                                <td className="p-4 font-medium text-gray-600">{p.date}</td>
+                                <td className="p-4 font-black text-emerald-600">Q{p.amount.toFixed(2)}</td>
+                             </tr>
+                           ))}
+                           {myPaymentsHistory.length === 0 && <tr><td colSpan="2" className="p-8 text-center text-gray-500">Aún no tienes abonos registrados.</td></tr>}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </>
@@ -882,17 +870,12 @@ export default function App() {
                          <span className="text-gray-500">Costo Base: Q{it.baseCostTotal.toFixed(2)}</span>
                          <span className="text-emerald-500">Ganancia: Q{it.profit.toFixed(2)}</span>
                        </div>
-                       {it.difference !== undefined && it.difference !== 0 && (
-                          <div className={`mt-1 py-1 px-2 rounded font-bold text-center ${it.difference > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                             {it.priceMessage}
-                          </div>
-                       )}
                     </div>
                   </div>
                 ))}
               </div>
               <div>
-                <h4 className="font-black mb-2 border-b pb-2">Historial de Pagos</h4>
+                <h4 className="font-black mb-2 border-b pb-2">Historial de Pagos del Cliente</h4>
                 {selectedOrderDetails.payments?.map(p => (
                   <div key={p.id} className="flex justify-between text-xs py-1 border-b border-dashed text-gray-600">
                     <span>{p.date.split(',')[0]} - {p.type} ({p.method})</span>
@@ -950,7 +933,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ABONO ADMIN */}
+      {/* MODAL ABONO ADMIN A VENDEDOR */}
       {adminAbonoModalOpen && sellerToPay && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
@@ -958,7 +941,7 @@ export default function App() {
             <p className="text-sm text-gray-500 mb-4 font-bold">{sellerToPay.nombre}</p>
             <form onSubmit={processAbonoAdmin} className="space-y-4">
               <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{sellerToPay.currentDebt.toFixed(2)}</b></div>
-              <input type="number" step="0.01" max={sellerToPay.currentDebt} value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              <input type="number" step="0.01" value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null);}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button>
                 <button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button>
@@ -968,14 +951,21 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ABONO PROVEEDOR */}
-      {providerModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      {/* MODAL EDITAR HISTORIAL DE ABONO DE VENDEDOR */}
+      {editingPayment && (
+         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Pagar al Proveedor</h3>
-            <form onSubmit={processAbonoProveedor} className="space-y-4">
-              <input type="number" step="0.01" max={currentProviderDebt} value={providerPaymentAmount} onChange={e=>setProviderPaymentAmount(e.target.value)} required placeholder="Monto a pagar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <button type="submit" className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl">Registrar Pago</button>
+            <h3 className="font-black mb-1">Editar Abono Registrado</h3>
+            <p className="text-sm text-gray-500 mb-4 font-bold">{editingPayment.sellerName}</p>
+            <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nuevo Monto (Q)</label>
+                <input type="number" step="0.01" value={editPaymentAmount} onChange={e=>setEditPaymentAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setEditingPayment(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button>
+                <button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button>
+              </div>
             </form>
           </div>
         </div>
