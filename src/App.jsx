@@ -41,6 +41,7 @@ const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" heig
 const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
 const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
 const IconPrint = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>;
+const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 
 // --- COMPONENTES TARJETAS ---
 const SalesCard = ({ item, onAddToCart, cartQty }) => {
@@ -107,6 +108,44 @@ const SalesCard = ({ item, onAddToCart, cartQty }) => {
   );
 };
 
+const AssignCard = ({ item, onAddToAssignCart, cartQty }) => {
+  const [assignQuantity, setAssignQuantity] = useState(1);
+  const [errorMsg, setErrorMsg] = useState('');
+  const availableQty = (item.quantity || 0) - (cartQty || 0);
+  const baseCostUnit = (item.weight || 0) * 40;
+
+  const handleAdd = () => {
+    if (assignQuantity > availableQty || assignQuantity <= 0) {
+      setErrorMsg("Stock insuficiente"); setTimeout(() => setErrorMsg(''), 2000); return;
+    }
+    onAddToAssignCart({
+      inventoryId: item.id, description: item.description || 'Joya', weight: item.weight || 0,
+      quantity: assignQuantity, baseCostTotal: baseCostUnit * assignQuantity
+    });
+    setAssignQuantity(1);
+  };
+
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex flex-col hover:shadow-md transition-shadow relative">
+      <div className="absolute top-4 right-4 bg-gray-100 px-3 py-1 rounded-full text-xs font-black text-gray-600">Stock Gral: {availableQty}</div>
+      <h3 className="font-black text-gray-800 text-lg mb-1 pr-24 leading-tight">{item.description || 'Sin descripción'}</h3>
+      <p className="text-gray-500 text-xs font-bold mb-5">Peso: {item.weight || 0}g &nbsp;•&nbsp; Costo Un.: Q{(baseCostUnit || 0).toFixed(2)}</p>
+
+      <div className="mt-auto space-y-4">
+        <div className="flex gap-2">
+          <div className="w-1/3">
+            <input type="number" min="1" max={availableQty} value={assignQuantity} onChange={(e) => setAssignQuantity(Number(e.target.value))} className="w-full h-full px-2 py-3 text-base bg-gray-50 border border-gray-200 rounded-2xl outline-none text-center font-bold text-gray-700" />
+          </div>
+          <button onClick={handleAdd} disabled={availableQty <= 0} className={`w-2/3 py-3 rounded-2xl font-black text-sm transition-all shadow-sm flex items-center justify-center gap-2 ${availableQty <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
+            <IconSend /> {availableQty <= 0 ? 'Agotado' : 'Asignar'}
+          </button>
+        </div>
+        {errorMsg && <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-600 text-lg font-black rounded-3xl z-10 animate-in fade-in zoom-in-95">{errorMsg}</div>}
+      </div>
+    </div>
+  );
+};
+
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -130,6 +169,10 @@ export default function App() {
   const [sellers, setSellers] = useState([]);
   const [sellerToAdminPayments, setSellerToAdminPayments] = useState([]);
 
+  // Búsquedas
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [salesSearch, setSalesSearch] = useState('');
+
   // Formularios Inventario / Vendedores
   const [newDesc, setNewDesc] = useState('');
   const [newWeight, setNewWeight] = useState('');
@@ -147,6 +190,13 @@ export default function App() {
   
   const [isAssignCartOpen, setIsAssignCartOpen] = useState(false);
   const [assignCheckoutModalOpen, setAssignCheckoutModalOpen] = useState(false);
+
+  // Estados Edición de Asignación
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [editAssignItems, setEditAssignItems] = useState([]);
+  const [editAssignSelectedNew, setEditAssignSelectedNew] = useState('');
+  const [editAssignNewQty, setEditAssignNewQty] = useState(1);
+  const [editAssignError, setEditAssignError] = useState('');
 
   // Carrito Ventas
   const [cart, setCart] = useState([]);
@@ -213,13 +263,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- 2. CARGA DE DATOS (CON SEGURIDAD DE RENDER) ---
+  // --- 2. CARGA DE DATOS ---
   useEffect(() => {
     if (!posProfile || !posProfile.adminUid || !firebaseUser) return;
     
     const adminRefUid = posProfile.adminUid;
     const errorHandler = (err) => console.error("Firestore Error:", err);
-    // Filtrar siempre por el admin general
     const filterByAdmin = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.adminUid === adminRefUid);
 
     const unsubInv = onSnapshot(getColRef('inventory'), (snap) => setInventory(filterByAdmin(snap)), errorHandler);
@@ -247,7 +296,8 @@ export default function App() {
     e.preventDefault(); setAuthError('');
     try {
       if (!auth.currentUser) {
-        await signInAnonymously(auth);
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+        else await signInAnonymously(auth);
       }
       const pinSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'globalSellers', sellerPinInput));
       if (pinSnap.exists()) {
@@ -440,7 +490,110 @@ export default function App() {
     });
   };
 
-  // --- RECIBO VIRTUAL (SCREENSHOT) ---
+  const handleSaveEditAssignment = async (e) => {
+    e.preventDefault();
+    setEditAssignError('');
+    const deltas = []; 
+    
+    // Mapear lo que tenía originalmente
+    const origMap = {};
+    (editingAssignment.items || []).forEach(it => {
+        const key = `${it.description}_${it.weight}`;
+        origMap[key] = (origMap[key] || 0) + it.quantity;
+    });
+
+    // Mapear lo nuevo
+    const newMap = {};
+    editAssignItems.forEach(it => {
+        const key = `${it.description}_${it.weight}`;
+        newMap[key] = (newMap[key] || 0) + it.quantity;
+    });
+
+    const allKeys = new Set([...Object.keys(origMap), ...Object.keys(newMap)]);
+
+    for (const key of allKeys) {
+        const origQty = origMap[key] || 0;
+        const newQty = newMap[key] || 0;
+        const diff = newQty - origQty; // Positivo: tomamos más de general. Negativo: devolvemos a general.
+
+        if (diff !== 0) {
+            const [desc, weightStr] = key.split('_');
+            const weight = Number(weightStr);
+            
+            const genItem = inventory.find(i => i.assignedTo === 'general' && i.description === desc && i.weight === weight);
+            const selItem = inventory.find(i => i.assignedTo === editingAssignment.sellerId && i.description === desc && i.weight === weight);
+
+            if (diff > 0) {
+                // Sacar más de general
+                if (!genItem || genItem.quantity < diff) {
+                    setEditAssignError(`Stock insuficiente en Caja General para ${desc}. Faltan ${diff - (genItem ? genItem.quantity : 0)} unidades.`);
+                    return;
+                }
+            } else if (diff < 0) {
+                // Devolver desde el vendedor
+                if (!selItem || selItem.quantity < Math.abs(diff)) {
+                    setEditAssignError(`El vendedor no tiene stock suficiente de ${desc} para devolver. Faltan ${Math.abs(diff) - (selItem ? selItem.quantity : 0)} unidades.`);
+                    return;
+                }
+            }
+            deltas.push({ desc, weight, diff, genItem, selItem });
+        }
+    }
+
+    try {
+        for (const d of deltas) {
+            // Actualizar inventario general
+            if (d.genItem) {
+                const newGenQty = d.genItem.quantity - d.diff;
+                if (newGenQty === 0 && d.diff > 0) {
+                    await deleteDoc(getDocRef('inventory', d.genItem.id));
+                } else {
+                    await updateDoc(getDocRef('inventory', d.genItem.id), { quantity: newGenQty });
+                }
+            } else if (d.diff < 0) {
+                // Si la devolvemos a general y no existía la entrada, se crea
+                await addDoc(getColRef('inventory'), {
+                    adminUid: posProfile.adminUid, description: d.desc, weight: d.weight, quantity: Math.abs(d.diff),
+                    cost: d.weight * 40, assignedTo: 'general', timestamp: Date.now()
+                });
+            }
+
+            // Actualizar inventario del vendedor
+            if (d.selItem) {
+                const newSelQty = d.selItem.quantity + d.diff;
+                if (newSelQty === 0 && d.diff < 0) {
+                    await deleteDoc(getDocRef('inventory', d.selItem.id));
+                } else {
+                    await updateDoc(getDocRef('inventory', d.selItem.id), { quantity: newSelQty });
+                }
+            } else if (d.diff > 0) {
+                // Se le asigna por primera vez
+                await addDoc(getColRef('inventory'), {
+                    adminUid: posProfile.adminUid, description: d.desc, weight: d.weight, quantity: d.diff,
+                    cost: d.weight * 40, assignedTo: editingAssignment.sellerId, timestamp: Date.now()
+                });
+            }
+        }
+
+        if (editAssignItems.length === 0) {
+            await deleteDoc(getDocRef('assignments', editingAssignment.id));
+        } else {
+            const newBaseCostTotal = editAssignItems.reduce((acc, it) => acc + it.baseCostTotal, 0);
+            await updateDoc(getDocRef('assignments', editingAssignment.id), {
+                items: editAssignItems,
+                baseCostTotal: newBaseCostTotal
+            });
+        }
+
+        setEditingAssignment(null);
+        setEditAssignItems([]);
+    } catch (err) {
+        console.error(err);
+        setEditAssignError("Error al guardar cambios de la asignación.");
+    }
+  };
+
+  // --- RECIBO VIRTUAL ---
   const handlePrint = (data, type) => {
     setVirtualReceipt({ data, type });
   };
@@ -560,12 +713,22 @@ export default function App() {
 
   const handleDeletePayment = (paymentId) => confirmAction("¿Eliminar este abono del historial?", async () => await deleteDoc(getDocRef('sellerPayments', paymentId)));
 
-  // --- 8. FILTROS Y DEUDAS DUALES (PROTEGIDOS CONTRA DATOS CORRUPTOS) ---
+  // --- 8. FILTROS BÚSQUEDAS Y DEUDAS DUALES ---
   const generalInventory = inventory.filter(i => i.assignedTo === 'general');
-  // Se filtran los artículos con cantidad 0 para que no sean visibles al vendedor. El administrador sí los puede ver.
-  const visibleInventory = posProfile?.role === 'admin' 
+  const visibleInventoryBase = posProfile?.role === 'admin' 
     ? inventory 
     : inventory.filter(i => i.assignedTo === posProfile?.sellerId && (i.quantity || 0) > 0);
+
+  // Filtrado de Inventario (Por barra de búsqueda)
+  const filteredInventory = visibleInventoryBase.filter(item => 
+    (item.description || '').toLowerCase().includes(inventorySearch.toLowerCase())
+  );
+
+  // Filtrado para Ventas (Por barra de búsqueda y quitando los de 'general' si es necesario)
+  const filteredSalesInventory = visibleInventoryBase
+    .filter(i => i.assignedTo !== 'general')
+    .filter(item => (item.description || '').toLowerCase().includes(salesSearch.toLowerCase()));
+
   const visibleHistory = posProfile?.role === 'admin' ? salesHistory : salesHistory.filter(s => s.sellerId === posProfile?.sellerId);
   const visibleAssignments = posProfile?.role === 'admin' ? assignmentsHistory : assignmentsHistory.filter(a => a.sellerId === posProfile?.sellerId);
 
@@ -578,8 +741,6 @@ export default function App() {
   };
 
   const sellerDebts = sellers.map(seller => ({ ...seller, currentDebt: calculateAdminSellerDebt(seller.id) }));
-  
-  // Deuda Global (Suma de las deudas de todos los vendedores)
   const totalGlobalDebt = sellerDebts.reduce((sum, s) => sum + Math.max(0, s.currentDebt || 0), 0);
 
   // Finanzas Vendedor Específico
@@ -595,7 +756,6 @@ export default function App() {
   const myBaseCostSold = mySales.reduce((sum, s) => sum + (s.baseCostTotal || 0), 0);
   const myTotalPaidToAdmin = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId && !p.isAdjustment).reduce((sum, p) => sum + (p.amount || 0), 0);
   const myDebtToAdmin = posProfile?.role === 'seller' ? (myBaseCostSold - myTotalPaidToAdmin) : 0;
-  
   const myPaymentsHistory = sellerToAdminPayments.filter(p => p.sellerId === posProfile?.sellerId);
 
   // --- RENDERIZADOS ---
@@ -709,7 +869,14 @@ export default function App() {
               )}
 
               <div className="bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b border-gray-50 bg-gray-50/50"><h3 className="font-bold text-gray-800">{posProfile.role === 'admin' ? 'Inventario Total' : 'Mi Inventario Asignado'}</h3></div>
+                {/* Cabecera con Buscador */}
+                <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-center gap-3">
+                  <h3 className="font-bold text-gray-800">{posProfile.role === 'admin' ? 'Inventario Total' : 'Mi Inventario Asignado'}</h3>
+                  <div className="relative w-full sm:w-64">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400"><IconSearch /></div>
+                    <input type="text" placeholder="Buscar joya..." value={inventorySearch} onChange={e => setInventorySearch(e.target.value)} className="w-full pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none shadow-sm" />
+                  </div>
+                </div>
                 
                 {/* VISTA ESCRITORIO (Tabla) */}
                 <div className="overflow-x-auto hidden md:block">
@@ -726,7 +893,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-sm">
-                      {visibleInventory.map(item => (
+                      {filteredInventory.map(item => (
                         <tr key={item.id} className="hover:bg-gray-50/50">
                           <td className="p-4 font-black text-gray-800">{item.description || 'Sin nombre'}</td>
                           {posProfile.role === 'admin' && <td className="p-4"><span className={`px-2 py-1 rounded-md text-xs font-bold ${item.assignedTo==='general'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700'}`}>{item.assignedTo === 'general' ? 'Caja General' : sellers.find(s=>s.id===item.assignedTo)?.nombre || 'Desconocido'}</span></td>}
@@ -742,14 +909,14 @@ export default function App() {
                           )}
                         </tr>
                       ))}
-                      {visibleInventory.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-gray-500">No hay inventario disponible.</td></tr>}
+                      {filteredInventory.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-gray-500">No se encontraron joyas en el inventario.</td></tr>}
                     </tbody>
                   </table>
                 </div>
 
                 {/* VISTA MÓVIL (Tarjetas) */}
                 <div className="md:hidden flex flex-col gap-3 p-4">
-                  {visibleInventory.map(item => (
+                  {filteredInventory.map(item => (
                     <div key={item.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative">
                        <h4 className="font-black text-gray-800 text-sm leading-tight mb-2">{item.description || 'Sin nombre'}</h4>
                        <div className="flex justify-between items-center mb-3">
@@ -779,7 +946,7 @@ export default function App() {
                        )}
                     </div>
                   ))}
-                  {visibleInventory.length === 0 && <div className="text-center py-8 text-gray-500 font-bold text-sm">No hay inventario disponible.</div>}
+                  {filteredInventory.length === 0 && <div className="text-center py-8 text-gray-500 font-bold text-sm">No se encontraron joyas en el inventario.</div>}
                 </div>
               </div>
             </div>
@@ -897,15 +1064,21 @@ export default function App() {
           {/* TAB: VENTAS */}
           {activeTab === 'sales' && (
             <div className="px-4 md:px-0">
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <h2 className="text-xl font-black text-gray-900 mb-1">Punto de Venta</h2>
-                <button onClick={() => setIsCartOpen(!isCartOpen)} className="hidden md:flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold">
-                  <IconCart /> Ver Carrito {cart.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-xs">{cart.length}</span>}
-                </button>
+                <div className="flex gap-2 w-full sm:w-auto items-center">
+                  <div className="relative flex-1 sm:w-48">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400"><IconSearch /></div>
+                    <input type="text" placeholder="Buscar joya..." value={salesSearch} onChange={e=>setSalesSearch(e.target.value)} className="w-full pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none shadow-sm" />
+                  </div>
+                  <button onClick={() => setIsCartOpen(!isCartOpen)} className="hidden md:flex items-center gap-2 bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-bold">
+                    <IconCart /> {cart.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-xs">{cart.length}</span>}
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {visibleInventory.filter(i=>i.assignedTo !== 'general').map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+(b.quantity||0), 0)} />)}
-                {visibleInventory.filter(i=>i.assignedTo !== 'general').length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario disponible para vender.</div>}
+                {filteredSalesInventory.map(item => <SalesCard key={item.id} item={item} onAddToCart={handleAddToCart} cartQty={cart.filter(c => c.inventoryId === item.id).reduce((a,b)=>a+(b.quantity||0), 0)} />)}
+                {filteredSalesInventory.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 font-bold">No tienes inventario o la búsqueda no coincide.</div>}
               </div>
             </div>
           )}
@@ -919,10 +1092,12 @@ export default function App() {
                 <h2 className="text-lg font-black text-gray-900">
                   {historyView === 'sales' ? 'Historial de Órdenes de Venta' : 'Historial de Asignaciones de Inventario'}
                 </h2>
-                <div className="flex bg-gray-100 p-1 rounded-xl">
-                  <button onClick={() => setHistoryView('sales')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'sales' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Ventas</button>
-                  <button onClick={() => setHistoryView('assignments')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'assignments' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Asignaciones</button>
-                </div>
+                {posProfile.role === 'admin' && (
+                  <div className="flex bg-gray-100 p-1 rounded-xl">
+                    <button onClick={() => setHistoryView('sales')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'sales' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Ventas</button>
+                    <button onClick={() => setHistoryView('assignments')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${historyView === 'assignments' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Asignaciones</button>
+                  </div>
+                )}
               </div>
               
               {historyView === 'sales' ? (
@@ -996,6 +1171,7 @@ export default function App() {
                             <td className="p-4 font-black text-red-600">Q{(assign.baseCostTotal || 0).toFixed(2)}</td>
                             {posProfile.role === 'admin' && (
                                <td className="p-4 flex items-center justify-end gap-2">
+                                 <button onClick={() => { setEditingAssignment(assign); setEditAssignItems([...(assign.items||[])]); }} className="text-xs font-bold border bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100"><IconEdit/></button>
                                  <button onClick={() => handleDeleteAssignment(assign)} className="text-xs font-bold border bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100"><IconTrash/></button>
                                </td>
                             )}
@@ -1023,7 +1199,8 @@ export default function App() {
                         </div>
                         {posProfile.role === 'admin' && (
                            <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-gray-50">
-                             <button onClick={() => handleDeleteAssignment(assign)} className="text-[11px] font-bold border border-red-100 bg-red-50 text-red-600 px-4 py-2 rounded-xl flex items-center gap-1"><IconTrash/> Eliminar Asignación</button>
+                             <button onClick={() => { setEditingAssignment(assign); setEditAssignItems([...(assign.items||[])]); }} className="text-[11px] font-bold border border-gray-200 bg-gray-50 text-gray-700 px-4 py-2 rounded-xl flex items-center gap-1"><IconEdit/> Editar</button>
+                             <button onClick={() => handleDeleteAssignment(assign)} className="text-[11px] font-bold border border-red-100 bg-red-50 text-red-600 px-4 py-2 rounded-xl flex items-center gap-1"><IconTrash/></button>
                            </div>
                         )}
                       </div>
@@ -1348,6 +1525,168 @@ export default function App() {
         </div>
       )}
 
+      {/* Editar Asignación */}
+      {editingAssignment && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b flex justify-between items-center bg-blue-50 rounded-t-3xl">
+               <h3 className="font-black text-blue-900">Editar Asignación: <span className="text-blue-600">{editingAssignment.assignmentNumber}</span></h3>
+               <button onClick={() => {setEditingAssignment(null); setEditAssignItems([]);}} className="text-blue-600"><IconClose/></button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-4 text-sm bg-gray-50/30">
+               {editAssignError && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-xs font-bold text-center">{editAssignError}</div>}
+               
+               {/* Agregar nuevo articulo */}
+               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                 <h4 className="font-bold text-gray-700">Agregar mercadería desde Caja General</h4>
+                 <div className="flex gap-2">
+                   <select value={editAssignSelectedNew} onChange={e=>setEditAssignSelectedNew(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border outline-none text-xs bg-gray-50">
+                      <option value="">-- Seleccionar Joya --</option>
+                      {generalInventory.filter(i => (i.quantity || 0) > 0).map(i => <option key={i.id} value={i.id}>{i.description} ({i.weight}g) - Disp: {i.quantity}</option>)}
+                   </select>
+                   <input type="number" min="1" value={editAssignNewQty} onChange={e=>setEditAssignNewQty(e.target.value)} className="w-16 px-2 py-2 rounded-lg border text-center text-xs font-bold bg-gray-50" />
+                   <button type="button" onClick={() => {
+                      if(!editAssignSelectedNew) return;
+                      const genItem = generalInventory.find(i => i.id === editAssignSelectedNew);
+                      if(!genItem) return;
+                      const qty = Number(editAssignNewQty);
+                      if(qty <= 0 || qty > genItem.quantity) { setEditAssignError("Cantidad inválida o superior al stock disponible"); return; }
+                      
+                      const existingIndex = editAssignItems.findIndex(i => i.description === genItem.description && i.weight === genItem.weight);
+                      let newItems = [...editAssignItems];
+                      if(existingIndex >= 0) {
+                          newItems[existingIndex].quantity += qty;
+                          newItems[existingIndex].baseCostTotal = newItems[existingIndex].quantity * (newItems[existingIndex].weight * 40);
+                      } else {
+                          newItems.push({
+                              cartId: Date.now() + Math.random(),
+                              description: genItem.description,
+                              weight: genItem.weight,
+                              quantity: qty,
+                              baseCostTotal: qty * (genItem.weight * 40)
+                          });
+                      }
+                      setEditAssignItems(newItems);
+                      setEditAssignSelectedNew('');
+                      setEditAssignNewQty(1);
+                      setEditAssignError('');
+                   }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">Añadir</button>
+                 </div>
+               </div>
+
+               {/* Artículos actuales */}
+               <div>
+                 <h4 className="font-bold text-gray-800 mb-2">Artículos en la Asignación</h4>
+                 {editAssignItems.length === 0 && <p className="text-red-500 text-xs font-bold italic">La asignación quedará vacía (se eliminará si la guardas así).</p>}
+                 <div className="space-y-2">
+                   {editAssignItems.map((it, idx) => (
+                     <div key={idx} className="flex justify-between items-center p-3 border rounded-xl bg-white shadow-sm">
+                        <div>
+                           <div className="font-bold text-gray-800 text-xs">{it.description}</div>
+                           <div className="text-[10px] text-gray-500">{it.weight}g | Costo Base: Q{(it.baseCostTotal || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <input type="number" min="1" value={it.quantity} onChange={(e) => {
+                               const val = Number(e.target.value);
+                               if(val < 1) return;
+                               const newItems = [...editAssignItems];
+                               newItems[idx].quantity = val;
+                               newItems[idx].baseCostTotal = val * (it.weight * 40);
+                               setEditAssignItems(newItems);
+                           }} className="w-16 px-2 py-1.5 border rounded-lg text-center text-xs font-bold bg-gray-50 outline-none" />
+                           <button type="button" onClick={() => {
+                               const newItems = editAssignItems.filter((_, i) => i !== idx);
+                               setEditAssignItems(newItems);
+                           }} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg"><IconTrash/></button>
+                        </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+            </div>
+            <div className="p-5 border-t bg-gray-50 rounded-b-3xl flex justify-between items-center">
+                <div>
+                   <span className="block text-xs font-bold text-gray-500">Nuevo Total Deuda</span>
+                   <span className="text-red-600 text-2xl font-black">Q{editAssignItems.reduce((acc, it) => acc + (it.baseCostTotal || 0), 0).toFixed(2)}</span>
+                </div>
+                <button type="button" onClick={handleSaveEditAssignment} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3.5 rounded-xl shadow-md transition-colors">Guardar Cambios</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editar Orden */}
+      {editingOrder && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="font-black mb-4">Editar Orden: {editingOrder.orderNumber || 'Sin número'}</h3>
+            <form onSubmit={handleEditOrderSubmit} className="space-y-4">
+              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre Cliente</label><input type="text" value={editCustomerName} onChange={e=>setEditCustomerName(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Teléfono</label><input type="text" value={editCustomerPhone} onChange={e=>setEditCustomerPhone(e.target.value)} className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Pagado (Acumulado)</label><input type="number" step="0.01" max={editingOrder.saleTotal} value={editPaidAmount} onChange={e=>setEditPaidAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-black text-amber-600" /></div>
+              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingOrder(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Abono Modal Cliente */}
+      {abonoModalOpen && abonoOrder && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="font-black mb-4">Abono del Cliente</h3>
+            <form onSubmit={processAbonoCliente} className="space-y-4">
+              <div className="flex justify-between mb-4"><b>Saldo Pendiente:</b><b className="text-red-500">Q{(abonoOrder.balance || 0).toFixed(2)}</b></div>
+              <input type="number" step="0.01" max={abonoOrder.balance || 0} value={abonoAmount} onChange={e=>setAbonoAmount(e.target.value)} required placeholder="Monto a abonar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              <select value={abonoMethod} onChange={e=>setAbonoMethod(e.target.value)} className="w-full px-3 py-2.5 bg-white border rounded-xl font-bold"><option>Efectivo</option><option>Transferencia</option></select>
+              <button type="submit" className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl">Guardar Abono</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Pago a Admin */}
+      {adminAbonoModalOpen && sellerToPay && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="font-black mb-1">Registrar Pago de Vendedor</h3>
+            <p className="text-sm text-gray-500 mb-4 font-bold">{sellerToPay.nombre || 'Sin nombre'}</p>
+            <form onSubmit={processAbonoAdmin} className="space-y-4">
+              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{(sellerToPay.currentDebt || 0).toFixed(2)}</b></div>
+              <input type="number" step="0.01" value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
+              <div className="flex gap-3 pt-4"><button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null); setAdminAbonoAmount('');}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Editar Abono Admin */}
+      {editingPayment && (
+         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="font-black mb-1">Editar Abono Registrado</h3>
+            <p className="text-sm text-gray-500 mb-4 font-bold">{editingPayment.sellerName || 'Desconocido'}</p>
+            <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
+              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nuevo Monto (Q)</label><input type="number" step="0.01" value={editPaymentAmount} onChange={e=>setEditPaymentAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
+              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingPayment(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dialogo General de Confirmación */}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <h3 className="font-black text-lg mb-6 text-gray-900">{confirmDialog.message}</h3>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setConfirmDialog(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200">Cancelar</button>
+              <button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} className="w-1/2 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recibo Virtual (Para Screenshot) */}
       {virtualReceipt && (
         <div className="fixed inset-0 bg-gray-900/90 z-[60] flex items-center justify-center p-4">
@@ -1430,77 +1769,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Editar Orden */}
-      {editingOrder && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Editar Orden: {editingOrder.orderNumber || 'Sin número'}</h3>
-            <form onSubmit={handleEditOrderSubmit} className="space-y-4">
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre Cliente</label><input type="text" value={editCustomerName} onChange={e=>setEditCustomerName(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Teléfono</label><input type="text" value={editCustomerPhone} onChange={e=>setEditCustomerPhone(e.target.value)} className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Pagado (Acumulado)</label><input type="number" step="0.01" max={editingOrder.saleTotal} value={editPaidAmount} onChange={e=>setEditPaidAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-black text-amber-600" /></div>
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingOrder(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Abono Modal Cliente */}
-      {abonoModalOpen && abonoOrder && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-4">Abono del Cliente</h3>
-            <form onSubmit={processAbonoCliente} className="space-y-4">
-              <div className="flex justify-between mb-4"><b>Saldo Pendiente:</b><b className="text-red-500">Q{(abonoOrder.balance || 0).toFixed(2)}</b></div>
-              <input type="number" step="0.01" max={abonoOrder.balance || 0} value={abonoAmount} onChange={e=>setAbonoAmount(e.target.value)} required placeholder="Monto a abonar" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <select value={abonoMethod} onChange={e=>setAbonoMethod(e.target.value)} className="w-full px-3 py-2.5 bg-white border rounded-xl font-bold"><option>Efectivo</option><option>Transferencia</option></select>
-              <button type="submit" className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl">Guardar Abono</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Pago a Admin */}
-      {adminAbonoModalOpen && sellerToPay && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-1">Registrar Pago de Vendedor</h3>
-            <p className="text-sm text-gray-500 mb-4 font-bold">{sellerToPay.nombre || 'Sin nombre'}</p>
-            <form onSubmit={processAbonoAdmin} className="space-y-4">
-              <div className="flex justify-between mb-4"><b>Deuda Actual:</b><b className="text-red-500">Q{(sellerToPay.currentDebt || 0).toFixed(2)}</b></div>
-              <input type="number" step="0.01" value={adminAbonoAmount} onChange={e=>setAdminAbonoAmount(e.target.value)} required placeholder="Monto entregado por el vendedor" className="w-full px-3 py-2.5 border rounded-xl font-bold" />
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => {setAdminAbonoModalOpen(false); setSellerToPay(null); setAdminAbonoAmount('');}} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Confirmar</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Editar Abono Admin */}
-      {editingPayment && (
-         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="font-black mb-1">Editar Abono Registrado</h3>
-            <p className="text-sm text-gray-500 mb-4 font-bold">{editingPayment.sellerName || 'Desconocido'}</p>
-            <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nuevo Monto (Q)</label><input type="number" step="0.01" value={editPaymentAmount} onChange={e=>setEditPaymentAmount(e.target.value)} required className="w-full px-3 py-2.5 border rounded-xl font-bold" /></div>
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingPayment(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">Cancelar</button><button type="submit" className="w-1/2 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Guardar</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Dialogo General de Confirmación */}
-      {confirmDialog && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center">
-            <h3 className="font-black text-lg mb-6 text-gray-900">{confirmDialog.message}</h3>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setConfirmDialog(null)} className="w-1/2 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200">Cancelar</button>
-              <button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} className="w-1/2 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md">Confirmar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
